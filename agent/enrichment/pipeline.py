@@ -77,6 +77,10 @@ def enrich(company_name: str) -> dict:
     tech_stack = crunchbase.extract_tech_stack(record)
     industries = crunchbase.extract_industries(record)
     layoff_cb = crunchbase.extract_layoff_signal(record) if cb_found else ""
+    leadership_changes = crunchbase.extract_leadership_changes(record) if cb_found else ""
+    description = crunchbase.extract_description(record) if cb_found else ""
+    headcount = crunchbase.extract_headcount(record) if cb_found else ""
+    recent_news = crunchbase.extract_recent_news(record) if cb_found else ""
 
     # 2. Layoffs.fyi signal
     layoff_signal = layoffs.summary(company_name)
@@ -88,8 +92,8 @@ def enrich(company_name: str) -> dict:
     jobs_60d = job_data["jobs_60_days"] if job_data["data_available"] else "data not available"
     ai_roles = job_data["ai_roles"]
 
-    # 4. Rule-based AI maturity pre-score
-    pre_score, pre_rationale = maturity.score(tech_stack, ai_roles)
+    # 4. Rule-based AI maturity pre-score (now includes industries signal)
+    pre_score, pre_rationale = maturity.score(tech_stack, ai_roles, industries=industries)
 
     # 5. Competitor signals
     peers = _find_sector_peers(record) if cb_found else []
@@ -105,6 +109,11 @@ def enrich(company_name: str) -> dict:
         tech_stack=tech_stack,
         ai_roles=ai_roles,
         competitor_signals=competitor_signals,
+        industries=industries,
+        headcount=headcount,
+        description=description,
+        leadership_changes=leadership_changes,
+        recent_news=recent_news,
     )
 
     return {

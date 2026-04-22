@@ -23,11 +23,19 @@ _EXEC_AI_KEYWORDS = {
 }
 
 
+_AI_INDUSTRY_SIGNALS = {
+    "artificial intelligence", "machine learning", "deep learning", "nlp",
+    "computer vision", "data science", "generative ai", "llm", "mlops",
+    "ai", "ml", "analytics", "big data", "data platform",
+}
+
+
 def score(
     tech_stack: list[str],
     ai_roles: list[str],
     has_named_ai_leadership: bool = False,
     exec_commentary_keywords: list[str] | None = None,
+    industries: list[str] | None = None,
 ) -> tuple[int, dict]:
     """
     Returns (score, rationale_dict).
@@ -70,5 +78,13 @@ def score(
         if exec_hits:
             points += 1
             rationale["exec_ai_commentary"] = True
+
+    # Industry signal (medium weight — companies in AI/ML/Data industries get +1)
+    if industries:
+        industry_text = " ".join(i.lower() for i in industries)
+        industry_hits = [s for s in _AI_INDUSTRY_SIGNALS if s in industry_text]
+        if industry_hits:
+            points += 1
+            rationale.setdefault("industry_ai_signals", industry_hits)
 
     return min(points, 3), rationale

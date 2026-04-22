@@ -1,15 +1,15 @@
 {
-  "sector": "unknown",
+  "sector": "Developer APIs",
   "competitors_analyzed": 1,
   "prospect_ai_score": 0,
   "prospect_position_in_sector": "bottom_quartile",
   "gaps": [
     {
-      "practice": "AI maturity",
-      "evidence_in_top_quartile": "Competitor 1 has AI maturity score of 0/3",
-      "evidence_at_prospect": "SnapTrade has no AI maturity signals detected",
-      "gap_insight": "SnapTrade lacks AI maturity signals compared to a competitor with similar AI maturity score.",
-      "confidence": 0.5
+      "practice": "AI/ML Integration",
+      "evidence_in_top_quartile": "Wit.ai shows no AI/ML signals, but other competitors may have higher maturity.",
+      "evidence_at_prospect": "SnapTrade has no AI/ML roles or stack signals.",
+      "gap_insight": "SnapTrade lacks AI/ML integration capabilities compared to industry peers.",
+      "confidence": 0.4
     }
   ],
   "overall_confidence": 0.4

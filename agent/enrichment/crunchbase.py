@@ -65,15 +65,25 @@ def extract_funding_summary(record: dict) -> str:
     )
 
 
+_BUILTWITH_JUNK = {
+    "euro", "crux dataset", "crux top 5m", "crux top 1m", "crux top 10k",
+    "domain not resolving", "cloudflare hosting", "amazon s3", "parked domain",
+    "google analytics", "google tag manager", "facebook pixel", "hotjar",
+    "intercom", "hubspot analytics", "mixpanel", "segment analytics",
+    "linkedin insight tag", "twitter pixel", "tiktok pixel",
+}
+
+
 def extract_tech_stack(record: dict) -> list[str]:
-    """Return list of detected technologies from BuiltWith field."""
+    """Return list of detected technologies from BuiltWith field, filtered for signal value."""
     raw = record.get("builtwith_tech", "")
     parsed = _parse_json_field(raw)
+    candidates: list[str] = []
     if isinstance(parsed, list):
-        return [str(t.get("name", t)) if isinstance(t, dict) else str(t) for t in parsed[:20]]
-    if isinstance(raw, str) and raw:
-        return [t.strip() for t in raw.split(",") if t.strip()][:20]
-    return []
+        candidates = [str(t.get("name", t)) if isinstance(t, dict) else str(t) for t in parsed[:40]]
+    elif isinstance(raw, str) and raw:
+        candidates = [t.strip() for t in raw.split(",") if t.strip()][:40]
+    return [t for t in candidates if t.lower() not in _BUILTWITH_JUNK][:20]
 
 
 def extract_industries(record: dict) -> list[str]:
@@ -98,3 +108,22 @@ def extract_leadership_changes(record: dict) -> str:
     if parsed:
         return str(parsed)
     return raw or "No leadership change signal detected"
+
+
+def extract_description(record: dict) -> str:
+    return record.get("full_description") or record.get("about") or ""
+
+
+def extract_headcount(record: dict) -> str:
+    return record.get("num_employees") or ""
+
+
+def extract_recent_news(record: dict) -> str:
+    raw = record.get("news", "")
+    parsed = _parse_json_field(raw)
+    if isinstance(parsed, list) and parsed:
+        items = parsed[:3]
+        return "; ".join(
+            f"{n.get('title','')[:80]} ({n.get('date','?')})" for n in items if isinstance(n, dict)
+        )
+    return ""
