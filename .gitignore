@@ -1,3 +1,7 @@
 .env
 traces/*.jsonl
 __pycache__/
+.venv/
+
+Supporting Scenario of The Conversion Engine.md
+TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md
