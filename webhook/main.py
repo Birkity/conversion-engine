@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import json
@@ -14,11 +15,26 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-RESEND_WEBHOOK_SECRET = os.getenv("RESEND_WEBHOOK_SECRET", "")
+# Resend uses Svix: whsec_<base64-secret>
+_RESEND_RAW = os.getenv("RESEND_WEBHOOK_SECRET", "")
+RESEND_WEBHOOK_SECRET_BYTES = (
+    base64.b64decode(_RESEND_RAW.removeprefix("whsec_")) if _RESEND_RAW else b""
+)
 CALCOM_WEBHOOK_SECRET = os.getenv("CALCOM_WEBHOOK_SECRET", "")
 HUBSPOT_CLIENT_SECRET = os.getenv("HUBSPOT_CLIENT_SECRET", "")
 
 app = FastAPI(title="Conversion Engine Webhook Hub", version="0.1.0")
+
+
+def _svix_verify(secret_bytes: bytes, msg_id: str, timestamp: str, body: bytes, sig_header: str) -> bool:
+    signed = f"{msg_id}.{timestamp}.{body.decode()}".encode()
+    mac = hmac.new(secret_bytes, signed, hashlib.sha256)
+    expected = base64.b64encode(mac.digest()).decode()
+    return any(
+        part.split(",", 1)[-1] == expected
+        for part in sig_header.split(" ")
+        if part.startswith("v1,")
+    )
 
 
 @app.get("/health")
@@ -30,24 +46,17 @@ async def health():
     }
 
 
-@app.post("/webhook/resend")
+@app.post("/webhooks/resend")
 async def resend_webhook(request: Request):
-    """
-    Resend sends POST with JSON payload and optional Svix-Signature header.
-    Events: email.sent, email.delivered, email.bounced, email.opened, email.clicked
-    """
+    """Resend email events via Svix-signed webhook."""
     body = await request.body()
 
     sig = request.headers.get("svix-signature", "")
-    if RESEND_WEBHOOK_SECRET and sig:
+    if RESEND_WEBHOOK_SECRET_BYTES and sig:
         msg_id = request.headers.get("svix-id", "")
         msg_ts = request.headers.get("svix-timestamp", "")
-        signed = f"{msg_id}.{msg_ts}.{body.decode()}"
-        expected = hmac.new(
-            RESEND_WEBHOOK_SECRET.encode(), signed.encode(), hashlib.sha256
-        ).hexdigest()
-        if not any(part.split(",", 1)[-1] == f"v1,{expected}" for part in sig.split(" ")):
-            log.warning("resend signature mismatch — processing anyway in dev mode")
+        if not _svix_verify(RESEND_WEBHOOK_SECRET_BYTES, msg_id, msg_ts, body, sig):
+            log.warning("resend svix signature mismatch — processing anyway in dev mode")
 
     payload = json.loads(body) if body else {}
     event_type = payload.get("type", "unknown")
@@ -57,14 +66,9 @@ async def resend_webhook(request: Request):
     return JSONResponse({"received": True, "type": event_type}, status_code=202)
 
 
-@app.post("/webhook/at")
+@app.post("/webhooks/africastalking")
 async def at_webhook(request: Request):
-    """
-    Africa's Talking callbacks:
-    - Delivery reports: application/x-www-form-urlencoded
-    - Inbound SMS:      application/json
-    Both are accepted here.
-    """
+    """Africa's Talking delivery reports (form-encoded) and inbound SMS (JSON)."""
     content_type = request.headers.get("content-type", "")
 
     if "application/x-www-form-urlencoded" in content_type:
@@ -84,12 +88,9 @@ async def at_webhook(request: Request):
     return JSONResponse({"received": True}, status_code=200)
 
 
-@app.post("/webhook/calcom")
-async def calcom_webhook(request: Request):
-    """
-    Cal.com subscriber events: BOOKING_CREATED, BOOKING_CANCELLED, BOOKING_RESCHEDULED.
-    Optionally verified with X-Cal-Signature-256.
-    """
+@app.post("/webhooks/cal")
+async def cal_webhook(request: Request):
+    """Cal.com booking events: BOOKING_CREATED, BOOKING_CANCELLED, BOOKING_RESCHEDULED."""
     body = await request.body()
 
     sig = request.headers.get("X-Cal-Signature-256", "")
@@ -108,12 +109,9 @@ async def calcom_webhook(request: Request):
     return JSONResponse({"received": True, "triggerEvent": trigger}, status_code=200)
 
 
-@app.post("/webhook/hubspot")
+@app.post("/webhooks/hubspot")
 async def hubspot_webhook(request: Request):
-    """
-    HubSpot sends a JSON array of events.
-    Signature in X-HubSpot-Signature using client secret + request body.
-    """
+    """HubSpot CRM subscription events (JSON array)."""
     body = await request.body()
 
     sig = request.headers.get("X-HubSpot-Signature", "")
