@@ -1,0 +1,56 @@
+{
+  "company": "WISEiTECH",
+  "enrichment_ts": "2026-04-22T15:20:26.497024+00:00",
+  "crunchbase_found": true,
+  "crunchbase_id": "wiseitech",
+  "industries": [
+    "Analytics",
+    "Big Data",
+    "Machine Learning"
+  ],
+  "pre_score_ai_maturity": 0,
+  "pre_score_rationale": {
+    "ml_stack_hits": [],
+    "ai_role_hits": [],
+    "named_ai_leadership": false,
+    "exec_ai_commentary": false
+  },
+  "hiring_signal_brief": {
+    "company": "WISEiTECH",
+    "hiring_velocity": {
+      "direction": "stable",
+      "delta_pct": null,
+      "signal_strength": "insufficient_data",
+      "observation": "No job posts detected in current or previous 60-day window"
+    }
+  },
+  "budget_urgency": {
+    "level": "unknown",
+    "signal": null,
+    "runway_pressure": null
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": null
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "low",
+    "detected_stack": [
+      "Euro",
+      "CrUX Dataset",
+      "CrUX Top 5m"
+    ],
+    "bench_match_notes": "Tech stack shows basic web infrastructure without modern engineering practices"
+  },
+  "ai_maturity_score": 0,
+  "ai_maturity_rationale": {
+    "ai_roles_found": [],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "none",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.3,
+  "icp_segment": "ambiguous",
+  "recommended_pitch_angle": "Explore foundational engineering upgrades and AI readiness opportunities"
+}

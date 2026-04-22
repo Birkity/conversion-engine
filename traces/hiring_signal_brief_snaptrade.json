@@ -1,0 +1,34 @@
+{
+  "company": "SnapTrade",
+  "hiring_velocity": {
+    "direction": "stable",
+    "delta_pct": null,
+    "signal_strength": "insufficient_data",
+    "observation": "No job posts observed in the last 60 days or currently."
+  },
+  "budget_urgency": {
+    "level": "unknown",
+    "signal": null,
+    "runway_pressure": null
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": null
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "low",
+    "detected_stack": [],
+    "bench_match_notes": "No tech stack signals detected."
+  },
+  "ai_maturity_score": 0,
+  "ai_maturity_rationale": {
+    "ai_roles_found": [],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "none",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.3,
+  "icp_segment": "ambiguous",
+  "recommended_pitch_angle": "SnapTrade may be in a growth phase with potential for engineering expansion, but current signals are limited."
+}

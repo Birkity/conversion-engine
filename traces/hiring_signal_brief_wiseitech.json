@@ -1,0 +1,9 @@
+{
+  "company": "WISEiTECH",
+  "hiring_velocity": {
+    "direction": "stable",
+    "delta_pct": null,
+    "signal_strength": "insufficient_data",
+    "observation": "No job posts detected in current or previous 60-day window"
+  }
+}

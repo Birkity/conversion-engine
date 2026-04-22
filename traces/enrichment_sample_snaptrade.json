@@ -1,0 +1,68 @@
+{
+  "company": "SnapTrade",
+  "enrichment_ts": "2026-04-22T15:21:26.918257+00:00",
+  "crunchbase_found": true,
+  "crunchbase_id": "snaptrade-be4e",
+  "industries": [
+    "Developer APIs",
+    "Developer Tools",
+    "FinTech"
+  ],
+  "pre_score_ai_maturity": 0,
+  "pre_score_rationale": {
+    "ml_stack_hits": [],
+    "ai_role_hits": [],
+    "named_ai_leadership": false,
+    "exec_ai_commentary": false
+  },
+  "hiring_signal_brief": {
+    "company": "SnapTrade",
+    "hiring_velocity": {
+      "direction": "stable",
+      "delta_pct": null,
+      "signal_strength": "insufficient_data",
+      "observation": "No job posts observed in the last 60 days or currently."
+    },
+    "budget_urgency": {
+      "level": "unknown",
+      "signal": null,
+      "runway_pressure": null
+    },
+    "cost_pressure": {
+      "present": false,
+      "signal": null,
+      "icp_segment_implication": null
+    },
+    "engineering_maturity": {
+      "stack_sophistication": "low",
+      "detected_stack": [],
+      "bench_match_notes": "No tech stack signals detected."
+    },
+    "ai_maturity_score": 0,
+    "ai_maturity_rationale": {
+      "ai_roles_found": [],
+      "modern_ml_stack_signals": [],
+      "executive_ai_signals": "none",
+      "named_ai_leadership": false
+    },
+    "confidence": 0.3,
+    "icp_segment": "ambiguous",
+    "recommended_pitch_angle": "SnapTrade may be in a growth phase with potential for engineering expansion, but current signals are limited."
+  },
+  "competitor_gap_brief": {
+    "sector": "unknown",
+    "competitors_analyzed": 1,
+    "prospect_ai_score": 0,
+    "prospect_position_in_sector": "bottom_quartile",
+    "gaps": [
+      {
+        "practice": "AI maturity",
+        "evidence_in_top_quartile": "Competitor 1 has AI maturity score of 0/3",
+        "evidence_at_prospect": "SnapTrade has no AI maturity signals detected",
+        "gap_insight": "SnapTrade lacks AI maturity signals compared to a competitor with similar AI maturity score.",
+        "confidence": 0.5
+      }
+    ],
+    "overall_confidence": 0.4
+  }
+}
