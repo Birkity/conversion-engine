@@ -5,8 +5,7 @@ __pycache__/
 
 # tau2-bench local checkout — clone yourself: git clone sierra-research/tau2-bench eval/tau2
 eval/tau2/
-eval/data/tau2/
-eval/
+eval/data/
 
 # Crunchbase seed data — clone yourself: git clone luminati-io/Crunchbase-dataset-samples seeds/crunchbase
 seeds/crunchbase/
@@ -17,4 +16,5 @@ seeds/layoffs/
 
 Supporting Scenario of The Conversion Engine.md
 TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md
+eval/
 *.tex

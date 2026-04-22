@@ -1,0 +1,27 @@
+[
+  {
+    "run_id": "dev-baseline-20260422-001",
+    "label": "dev-tier smoke (3 tasks)",
+    "model_agent": "openrouter/qwen/qwen3-30b-a3b",
+    "model_user": "openrouter/meta-llama/llama-3.2-3b-instruct",
+    "domain": "retail",
+    "split": "dev",
+    "num_tasks_attempted": 3,
+    "num_tasks_evaluated": 2,
+    "num_infra_errors": 1,
+    "num_trials": 1,
+    "pass_at_1": 0.0,
+    "mean_reward": 0.0,
+    "ci_95_lower": 0.0,
+    "ci_95_upper": 0.0,
+    "read_action_accuracy": 0.25,
+    "write_action_accuracy": 0.0,
+    "db_match_rate": 0.0,
+    "cost_per_run_usd": 0.0,
+    "wall_clock_p50_s": 61.0,
+    "wall_clock_p95_s": 847.0,
+    "timestamp": "2026-04-22T17:12:22Z",
+    "notes": "Dev-tier smoke run on 3 tasks. Agent model (qwen3-30b-a3b) correctly identifies user and order but fails product lookup and write actions. USER_STOP termination on 2/2 evaluated tasks. 1 infra error fixed by routing OPENAI_BASE_URL to OpenRouter for internal tau2 calls. Cost $0.00 because LiteLLM doesn't map new OpenRouter model aliases to pricing table — actual tokens consumed.",
+    "unexpected_behavior": "Task 2 triggered repeated empty assistant messages from qwen3-30b-a3b before auth fallback. Fixed by setting OPENAI_BASE_URL=https://openrouter.ai/api/v1 in eval/tau2/.env."
+  }
+]
