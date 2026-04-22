@@ -2,6 +2,7 @@
 traces/*.jsonl
 __pycache__/
 .venv/
-
+eval/tau2/
+seeds/crunchbase/
 Supporting Scenario of The Conversion Engine.md
 TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md
