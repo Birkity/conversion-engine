@@ -48,6 +48,7 @@ def upsert_contact(
         "company": company,
         "phone": phone,
         "enrichment_timestamp": ts,
+        "tenacious_status": "draft",
     }
     if enrichment:
         properties["hs_lead_status"] = "NEW"
@@ -98,6 +99,8 @@ def search_contact(filter_property: str, value: str) -> str | None:
 
 def update_contact(contact_id: str, properties: dict) -> dict:
     """Patch arbitrary properties on an existing contact."""
+    properties = dict(properties)
+    properties.setdefault("tenacious_status", "draft")
     result = _request("PATCH", f"/crm/v3/objects/contacts/{contact_id}", {"properties": properties})
     return {"status": "updated", "id": result.get("id")}
 

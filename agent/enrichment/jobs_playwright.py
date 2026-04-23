@@ -14,9 +14,25 @@ Falls back gracefully when Playwright is unavailable or the page is blocked.
 import re
 import time
 from urllib.parse import quote
+from urllib.parse import urlparse
+from urllib.robotparser import RobotFileParser
 
 _USER_AGENT = "TRP1-Week10-Research (trainee@trp1.example)"
 _RATE_LIMIT_S = 2  # seconds between requests, per policy Rule 4
+
+
+def _robots_allows(url: str, user_agent: str) -> bool:
+    """Return True when robots.txt permits fetching the provided URL."""
+    try:
+        parsed = urlparse(url)
+        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        rp = RobotFileParser()
+        rp.set_url(robots_url)
+        rp.read()
+        return rp.can_fetch(user_agent, url)
+    except Exception:
+        # Fail closed: if robots cannot be checked, do not scrape.
+        return False
 
 
 def _linkedin_url(company_name: str, days: int) -> str:
@@ -84,8 +100,13 @@ def scrape_job_velocity(company_name: str) -> dict:
             ctx = browser.new_context(user_agent=_USER_AGENT)
             page = ctx.new_page()
 
+            start_url = _linkedin_url(company_name, 30)
+            if not _robots_allows(start_url, _USER_AGENT):
+                browser.close()
+                return _unavailable("robots_disallowed")
+
             # --- 30-day count ---
-            page.goto(_linkedin_url(company_name, 30), wait_until="domcontentloaded", timeout=25000)
+            page.goto(start_url, wait_until="domcontentloaded", timeout=25000)
             time.sleep(_RATE_LIMIT_S)
 
             if _is_blocked(page.url):
