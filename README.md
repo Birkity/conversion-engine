@@ -29,13 +29,19 @@ Voice (final)     ──► Human-delivered discovery call (not automated)
 CRM + Observability
 ──────────────────────────────────────────────
 HubSpot Developer Sandbox   ← contact upsert + enrichment note
+                            ← inbound SMS reply → lead status IN_PROGRESS + note
+                            ← BOOKING_CANCELLED → lead status OPEN + note
+                            ← BOOKING_RESCHEDULED → note on contact
 Langfuse cloud free tier    ← per-call cost + latency traces
 
 Webhook Hub (deployed on Render)
 ──────────────────────────────────────────────
 POST /webhooks/resend           ← email reply events → on_email_reply()
 POST /webhooks/africastalking   ← SMS delivery + inbound → on_sms_reply()
+                                  → searches HubSpot by phone → updates status + note
 POST /webhooks/cal              ← BOOKING_CREATED → HubSpot upsert
+                                  BOOKING_CANCELLED → status=OPEN + note
+                                  BOOKING_RESCHEDULED → note on contact
 POST /webhooks/hubspot          ← CRM subscription events
 GET  /health                    ← liveness check
 ```
@@ -134,7 +140,7 @@ python scripts/test_brief.py wiseitech
 python -m agent.enrichment.pipeline "Stripe"
 ```
 
-Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief.
+Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief. Returns `signal_confidence` dict with per-source confidence scores (crunchbase, job_velocity, layoffs, ai_maturity).
 
 ### Individual smoke tests
 
@@ -223,8 +229,8 @@ conversion-engine/
 │   ├── email/
 │   │   ├── handler.py             ← Resend SMTP + kill switch + draft header
 │   │   └── generator.py           ← LLM email composer (style-guide enforced)
-│   ├── sms/handler.py             ← Africa's Talking + warm-lead gate
-│   ├── hubspot/client.py          ← Contact upsert + enrichment note
+│   ├── sms/handler.py             ← Africa's Talking + warm-lead gate + inbound CRM routing
+│   ├── hubspot/client.py          ← Contact upsert, enrichment note, search, add_note, update_contact
 │   └── calendar/client.py         ← Cal.com booking link generator
 ├── webhook/main.py                ← FastAPI hub: 5 endpoints, HMAC verified
 ├── scripts/

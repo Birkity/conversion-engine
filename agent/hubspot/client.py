@@ -79,6 +79,41 @@ def upsert_contact(
         raise
 
 
+def search_contact(filter_property: str, value: str) -> str | None:
+    """Find a contact by a single property value. Returns contact ID or None."""
+    try:
+        body = {
+            "filterGroups": [{"filters": [
+                {"propertyName": filter_property, "operator": "EQ", "value": value}
+            ]}],
+            "properties": ["email", "firstname"],
+            "limit": 1,
+        }
+        result = _request("POST", "/crm/v3/objects/contacts/search", body)
+        results = result.get("results", [])
+        return results[0].get("id") if results else None
+    except Exception:
+        return None
+
+
+def update_contact(contact_id: str, properties: dict) -> dict:
+    """Patch arbitrary properties on an existing contact."""
+    result = _request("PATCH", f"/crm/v3/objects/contacts/{contact_id}", {"properties": properties})
+    return {"status": "updated", "id": result.get("id")}
+
+
+def add_note(contact_id: str, note_body: str) -> dict:
+    """Add a plain-text note to a contact."""
+    body = {
+        "properties": {"hs_note_body": note_body},
+        "associations": [{"to": {"id": contact_id}, "types": [
+            {"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}
+        ]}],
+    }
+    result = _request("POST", "/crm/v3/objects/notes", body)
+    return {"status": "note_created", "note_id": result.get("id")}
+
+
 def log_enrichment_note(contact_id: str, enrichment: dict) -> dict:
     """Attach enrichment JSON as a HubSpot note on the contact."""
     brief = enrichment.get("hiring_signal_brief", {})
