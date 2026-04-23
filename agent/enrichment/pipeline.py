@@ -116,6 +116,24 @@ def enrich(company_name: str) -> dict:
         recent_news=recent_news,
     )
 
+    # Per-signal confidence: how much we trust each data source for this company.
+    # crunchbase: binary — either we found the record or we didn't.
+    # job_velocity: from the jobs module (0.9 from CSV, 0.7 from Playwright, 0.0 if absent).
+    # layoffs: 1.0 if events found, 0.5 if seed loaded but no match, 0.0 if seed absent.
+    # ai_maturity: scaled from pre-score (more signal hits = more confidence).
+    layoff_events = layoffs.lookup(company_name)
+    if layoff_events:
+        layoff_confidence = 1.0
+    elif layoffs._LAYOFFS_PATH.exists():
+        layoff_confidence = 0.5
+    else:
+        layoff_confidence = 0.0
+
+    if pre_score > 0:
+        maturity_confidence = round(min(pre_score / 3, 1.0) * 0.8 + 0.2, 2)
+    else:
+        maturity_confidence = 0.2
+
     return {
         "company": company_name,
         "enrichment_ts": started_at,
@@ -124,6 +142,12 @@ def enrich(company_name: str) -> dict:
         "industries": industries,
         "pre_score_ai_maturity": pre_score,
         "pre_score_rationale": pre_rationale,
+        "signal_confidence": {
+            "crunchbase": 1.0 if cb_found else 0.0,
+            "job_velocity": job_data.get("confidence", 0.0),
+            "layoffs": layoff_confidence,
+            "ai_maturity": maturity_confidence,
+        },
         **briefs,
     }
 

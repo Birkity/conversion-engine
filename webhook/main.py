@@ -143,6 +143,21 @@ async def cal_webhook(request: Request):
         except Exception as exc:
             log.error("hubspot upsert failed: %s", exc)
 
+    elif trigger in ("BOOKING_CANCELLED", "BOOKING_RESCHEDULED") and attendee_email:
+        try:
+            from agent.hubspot.client import search_contact, update_contact, add_note
+            contact_id = search_contact("email", attendee_email)
+            if contact_id:
+                note = f"Cal.com {trigger}: {attendee_name} ({attendee_email})"
+                add_note(contact_id, note)
+                if trigger == "BOOKING_CANCELLED":
+                    update_contact(contact_id, {"hs_lead_status": "OPEN"})
+                log.info("hubspot cal event=%s contact_id=%s", trigger, contact_id)
+            else:
+                log.warning("cal event=%s no hubspot contact for email=%s", trigger, attendee_email)
+        except Exception as exc:
+            log.error("hubspot cal event routing failed: %s", exc)
+
     return JSONResponse({"received": True, "triggerEvent": trigger}, status_code=200)
 
 

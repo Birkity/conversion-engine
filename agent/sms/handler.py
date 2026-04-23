@@ -64,5 +64,16 @@ def send_nurture_sms(to: str, prospect_name: str, company: str, pitch_angle: str
 
 
 def on_sms_reply(from_number: str, text: str) -> None:
-    """Downstream hook for inbound SMS replies. Extend to route to CRM or alerts."""
+    """Route inbound SMS reply: log + update HubSpot lead status and add a note."""
     log.info("inbound_sms from=%s text=%r", from_number, text[:120])
+    try:
+        from agent.hubspot.client import search_contact, update_contact, add_note
+        contact_id = search_contact("phone", from_number)
+        if contact_id:
+            update_contact(contact_id, {"hs_lead_status": "IN_PROGRESS"})
+            add_note(contact_id, f"Inbound SMS reply from {from_number}:\n{text[:500]}")
+            log.info("hubspot updated contact_id=%s status=IN_PROGRESS sms_reply", contact_id)
+        else:
+            log.warning("inbound_sms no hubspot contact matched phone=%s", from_number)
+    except Exception as exc:
+        log.error("hubspot sms reply routing failed: %s", exc)
