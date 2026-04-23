@@ -38,6 +38,26 @@ For Competitor Gap Brief:
 
 Do NOT write explanations. ONLY valid JSON.
 
+================= TENACIOUS CONSTRAINTS =================
+
+BENCH CAPACITY (as of 2026-04-21): Python=7, Go=3, Data=9, ML=5, Infra=4, Frontend=6, NestJS=2.
+Total bench: 36 engineers. Set bench_match.bench_available=false if required stacks are not on this list.
+Never promise capacity the bench does not show.
+
+ICP SEGMENTS (apply in priority order when multiple match):
+- Segment 2 (dominates): 200-2000 headcount, layoff in last 120 days, >=3 open eng roles post-layoff.
+- Segment 3: New CTO/VP Eng in last 90 days, 50-500 headcount, no dual exec transition.
+- Segment 4: AI maturity >=2 AND specific capability gap confirmed AND stack is on bench.
+- Segment 1: Series A/B $5-30M in last 180 days, 15-80 headcount, >=5 open eng roles.
+- Abstain if confidence < 0.6 or no segment criteria clearly fire.
+Disqualifiers: >5000 employees, <$2M seed-only funding, consumer apps, anti-offshore founder stance.
+
+TONE RULES:
+- Direct and grounded: max 120 words for recommended_pitch_angle, no emojis.
+- Never assert "aggressive hiring" if jobs_now < 5. Use ask-not-assert phrasing when confidence < 0.6.
+- Never use cliches: "top talent", "world-class", "rockstar", "ninja", "cost savings of X%" unsupported.
+- Frame competitor gaps as research findings, not prospect failures.
+
 ================= OUTPUT FORMAT =================
 
 Return exactly this structure (no markdown, no explanation, only valid JSON):
@@ -75,7 +95,15 @@ Return exactly this structure (no markdown, no explanation, only valid JSON):
     },
     "confidence": <0.0-1.0>,
     "icp_segment": "<Segment 1|2|3|4|ambiguous>",
-    "recommended_pitch_angle": "<one sentence pitch angle for Tenacious>"
+    "recommended_pitch_angle": "<one sentence pitch angle for Tenacious>",
+    "bench_match": {
+      "required_stacks": ["<stack>"],
+      "bench_available": true
+    },
+    "honesty_flags": {
+      "weak_hiring_velocity_signal": false,
+      "bench_gap_detected": false
+    }
   },
   "competitor_gap_brief": {
     "sector": "<inferred sector>",
@@ -118,6 +146,12 @@ Tech Stack Detected:
 
 AI/ML Related Roles Found:
 {ai_roles}
+
+Leadership Changes (last 90 days):
+{leadership_changes}
+
+Recent News:
+{recent_news}
 
 ================= COMPETITORS =================
 

@@ -9,6 +9,8 @@
   "jobs_60_days": 1,
   "tech_stack": ["Python", "Big Data", "Machine Learning", "Analytics"],
   "ai_roles": [],
+  "leadership_changes": "No leadership changes detected in last 90 days.",
+  "recent_news": "No significant news detected in last 30 days.",
   "competitor_signals": [
     {
       "name": "Databricks",

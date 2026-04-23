@@ -94,6 +94,8 @@ def generate(signals: dict) -> dict:
         jobs_60_days=signals.get("jobs_60_days", "data not available"),
         tech_stack=tech_stack,
         ai_roles=ai_roles,
+        leadership_changes=signals.get("leadership_changes", "None detected"),
+        recent_news=signals.get("recent_news", "None detected"),
         competitor_signals=competitor_signals_str,
     )
 

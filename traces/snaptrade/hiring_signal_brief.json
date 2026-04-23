@@ -4,12 +4,12 @@
     "direction": "decelerating",
     "delta_pct": -60.0,
     "signal_strength": "moderate",
-    "observation": "Hiring appears to be slowing down based on recent job postings."
+    "observation": "Job postings have decreased in the last 60 days."
   },
   "budget_urgency": {
     "level": "low",
     "signal": "Seed round $3.2M in 2021",
-    "runway_pressure": "Limited recent funding may constrain ambitious engineering projects."
+    "runway_pressure": "Limited funding may constrain expansion."
   },
   "cost_pressure": {
     "present": false,
@@ -24,7 +24,7 @@
       "AWS",
       "PostgreSQL"
     ],
-    "bench_match_notes": "The stack is standard for API-focused companies."
+    "bench_match_notes": "Standard stack aligns with bench capabilities."
   },
   "ai_maturity_score": 0,
   "ai_maturity_rationale": {
@@ -33,7 +33,19 @@
     "executive_ai_signals": "none",
     "named_ai_leadership": false
   },
-  "confidence": 0.75,
-  "icp_segment": "Segment 2",
-  "recommended_pitch_angle": "Tenacious can augment SnapTrade's engineering team to accelerate API development and integration."
+  "confidence": 0.7,
+  "icp_segment": "ambiguous",
+  "recommended_pitch_angle": "Tenacious can augment SnapTrade's engineering team to accelerate API development.",
+  "bench_match": {
+    "required_stacks": [
+      "Python",
+      "AWS",
+      "PostgreSQL"
+    ],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": false,
+    "bench_gap_detected": false
+  }
 }

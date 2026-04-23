@@ -5,12 +5,12 @@
   "prospect_position_in_sector": "bottom_quartile",
   "gaps": [
     {
-      "practice": "Modern ML Stack",
-      "evidence_in_top_quartile": "Plaid utilizes TensorFlow.",
+      "practice": "Adoption of modern ML stacks",
+      "evidence_in_top_quartile": "Plaid utilizes TensorFlow and Kubernetes.",
       "evidence_at_prospect": "SnapTrade's stack does not include modern ML tools.",
-      "gap_insight": "Competitors are leveraging modern ML stacks, while SnapTrade's current stack lacks these capabilities.",
+      "gap_insight": "Competitors are investing in machine learning infrastructure.",
       "confidence": 0.8
     }
   ],
-  "overall_confidence": 0.7
+  "overall_confidence": 0.75
 }

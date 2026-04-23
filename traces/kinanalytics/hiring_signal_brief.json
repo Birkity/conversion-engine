@@ -1,0 +1,60 @@
+{
+  "company": "Kin Analytics",
+  "hiring_velocity": {
+    "direction": "accelerating",
+    "delta_pct": 75.0,
+    "signal_strength": "strong",
+    "observation": "The number of job posts increased significantly from 4 to 7 in the last 60 days."
+  },
+  "budget_urgency": {
+    "level": "high",
+    "signal": "Series A $12M closed February 2026",
+    "runway_pressure": null
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": "Segment 1"
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "high",
+    "detected_stack": [
+      "Python",
+      "dbt",
+      "Snowflake",
+      "AWS",
+      "PostgreSQL",
+      "React",
+      "Airflow"
+    ],
+    "bench_match_notes": "All required stacks are available on the bench."
+  },
+  "ai_maturity_score": 1,
+  "ai_maturity_rationale": {
+    "ai_roles_found": [
+      "ML Engineer"
+    ],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "none",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.8,
+  "icp_segment": "Segment 1",
+  "recommended_pitch_angle": "Kin Analytics is well-positioned for growth with its recent funding and expanding team, making it an ideal time to enhance engineering capabilities.",
+  "bench_match": {
+    "required_stacks": [
+      "Python",
+      "dbt",
+      "Snowflake",
+      "AWS",
+      "PostgreSQL",
+      "React",
+      "Airflow"
+    ],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": false,
+    "bench_gap_detected": false
+  }
+}

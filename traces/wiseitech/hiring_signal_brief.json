@@ -4,12 +4,12 @@
     "direction": "decelerating",
     "delta_pct": -100.0,
     "signal_strength": "weak",
-    "observation": "Hiring activity has decreased in the last 30 days."
+    "observation": "WiseiTech's hiring appears to be decelerating based on a decrease in job postings."
   },
   "budget_urgency": {
-    "level": "low",
+    "level": "unknown",
     "signal": null,
-    "runway_pressure": "Early-stage companies without funding may face budget constraints."
+    "runway_pressure": null
   },
   "cost_pressure": {
     "present": false,
@@ -24,7 +24,7 @@
       "Machine Learning",
       "Analytics"
     ],
-    "bench_match_notes": "The tech stack suggests a focus on data analysis and model building."
+    "bench_match_notes": "Stack aligns with bench capabilities."
   },
   "ai_maturity_score": 0,
   "ai_maturity_rationale": {
@@ -33,7 +33,20 @@
     "executive_ai_signals": "none",
     "named_ai_leadership": false
   },
-  "confidence": 0.7,
-  "icp_segment": "Segment 2",
-  "recommended_pitch_angle": "Tenacious can help WiseiTech build a scalable AI platform to enhance their analytics offerings."
+  "confidence": 0.6,
+  "icp_segment": "ambiguous",
+  "recommended_pitch_angle": "Tenacious can augment WiseiTech's existing Python, Big Data, and ML capabilities.",
+  "bench_match": {
+    "required_stacks": [
+      "Python",
+      "Big Data",
+      "Machine Learning",
+      "Analytics"
+    ],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": true,
+    "bench_gap_detected": false
+  }
 }
