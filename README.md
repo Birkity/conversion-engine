@@ -143,7 +143,8 @@ PYTHONIOENCODING=utf-8 NO_COLOR=1 uv run tau2 run \
   --max-concurrency 3 --auto-resume
 ```
 
-See `baseline.md` for dev-tier results. See `eval/score_log.json` for all recorded runs.
+See `score_log.json` for recorded run summaries and
+`eval/tau2/data/simulations/<run_id>/results.json` for full raw evaluation outputs.
 
 ---
 
@@ -165,15 +166,15 @@ conversion-engine/
 │   └── calendar/client.py  ← Cal.com booking link generator
 ├── webhook/main.py         ← FastAPI webhook hub (deployed on Render)
 ├── eval/
-│   ├── score_log.json      ← τ²-Bench run history
 │   └── tau2/               ← τ²-Bench checkout (gitignored)
 ├── scripts/                ← Smoke tests + local test utilities
 ├── seeds/
 │   ├── crunchbase/         ← 1,513 company records (gitignored, clone locally)
 │   ├── layoffs/            ← layoffs.fyi CSV
 │   └── job_posts/          ← LinkedIn job postings (gitignored — 493MB)
-├── traces/                 ← Runtime trace JSONL (gitignored)
-├── baseline.md             ← τ²-Bench dev-tier baseline report
+├── traces/                 ← Company-organized briefs (e.g., traces/<company>/...)
+├── score_log.json          ← τ²-Bench run summary history (root)
+├── trace_log.jsonl         ← Appended simulation traces (root)
 ├── Procfile                ← Render start command
 ├── render.yaml             ← Render service config
 └── requirements.txt

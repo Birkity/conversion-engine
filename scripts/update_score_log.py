@@ -1,10 +1,13 @@
 """
-Parse tau2 simulation results.json → update eval/score_log.json and eval/trace_log.jsonl.
+Parse a TAU2 results.json and update root logs:
+    - score_log.json
+    - trace_log.jsonl
 
 Usage:
-    python scripts/update_score_log.py <path-to-results.json>
-    # e.g.:
-    # python scripts/update_score_log.py eval/tau2/data/simulations/20260422_181511_.../results.json
+        python scripts/update_score_log.py <path-to-results.json>
+
+If no path is provided, the newest simulation folder in
+eval/tau2/data/simulations is used automatically.
 """
 import json
 import math
@@ -33,29 +36,35 @@ def percentile(values: list[float], p: float) -> float:
     return s[lo] + (idx - lo) * (s[hi] - s[lo])
 
 
-def main(results_path: str) -> None:
-    with open(results_path) as f:
-        data = json.load(f)
+def is_read_action(action_check: dict) -> bool:
+    return action_check.get("tool_type") == "read"
 
-    sims = data.get("simulations", [])
-    info = data.get("info", {})
 
-    rewards = [s["reward_info"]["reward"] for s in sims if s.get("reward_info")]
-    passed = [r for r in rewards if r >= 1.0]
-    durations = [s["duration"] for s in sims if s.get("duration")]
-    agent_costs = [s.get("agent_cost", 0) for s in sims]
-
+def compute_action_accuracy(sims: list[dict]) -> tuple[int, int, int, int]:
     read_ok = sum_r = write_ok = sum_w = 0
     for s in sims:
         for ac in s.get("reward_info", {}).get("action_checks", []):
-            is_read = ac.get("action", {}).get("nam", "").lower() in (
-                "get", "find", "search", "lookup", "list", "check"
-            )
-            ok = ac.get("result", {}).get("match", False)
-            if is_read:
-                read_ok += int(ok); sum_r += 1
+            ok = bool(ac.get("action_match", False))
+            if is_read_action(ac):
+                read_ok += int(ok)
+                sum_r += 1
             else:
-                write_ok += int(ok); sum_w += 1
+                write_ok += int(ok)
+                sum_w += 1
+    return read_ok, sum_r, write_ok, sum_w
+
+
+def build_score_entry(results_path: str, info: dict, sims: list[dict]) -> dict:
+    rewards = [float(s["reward_info"]["reward"]) for s in sims if s.get("reward_info")]
+    passed = [r for r in rewards if r >= 1.0]
+    durations = [float(s["duration"]) for s in sims if s.get("duration")]
+    agent_costs = [float(s.get("agent_cost", 0) or 0.0) for s in sims]
+    user_costs = [float(s.get("user_cost", 0) or 0.0) for s in sims]
+    db_matches = [
+        bool(s.get("reward_info", {}).get("db_check", {}).get("db_match", False))
+        for s in sims
+    ]
+    read_ok, sum_r, write_ok, sum_w = compute_action_accuracy(sims)
 
     n = len(rewards)
     pass_at_1 = len(passed) / n if n else 0.0
@@ -63,70 +72,82 @@ def main(results_path: str) -> None:
     lo, hi = ci95(rewards)
     p50 = percentile(durations, 50)
     p95 = percentile(durations, 95)
-    cost_per_run = sum(agent_costs)
+    total_cost = sum(agent_costs) + sum(user_costs)
+    avg_cost_per_conversation = total_cost / n if n else 0.0
+    db_match_rate = sum(1 for x in db_matches if x) / n if n else 0.0
 
     agent_llm = info.get("agent_info", {}).get("llm", "unknown")
     user_llm = info.get("user_info", {}).get("llm", "unknown")
+    now = datetime.now(timezone.utc)
 
-    entry = {
-        "run_id": f"dev-baseline-{datetime.now(timezone.utc).strftime('%Y%m%d')}-gemini-flash",
-        "label": "dev-tier 30-task 5-trial full baseline",
+    return {
+        "run_id": f"tau2-retail-{now.strftime('%Y%m%d-%H%M%S')}",
+        "label": "retail sanity run (5 tasks)",
         "model_agent": agent_llm,
         "model_user": user_llm,
-        "domain": "retail",
+        "domain": info.get("domain", "retail"),
         "split": "dev",
-        "num_tasks_attempted": info.get("num_trials", 5) * 30,
+        "num_tasks_attempted": n,
         "num_tasks_evaluated": n,
         "num_infra_errors": 0,
-        "num_trials": info.get("num_trials", 5),
+        "num_trials": info.get("num_trials", 1),
         "pass_at_1": round(pass_at_1, 4),
         "mean_reward": round(mean_reward, 4),
         "ci_95_lower": round(lo, 4),
         "ci_95_upper": round(hi, 4),
         "read_action_accuracy": round(read_ok / sum_r, 4) if sum_r else None,
         "write_action_accuracy": round(write_ok / sum_w, 4) if sum_w else None,
-        "db_match_rate": None,
-        "cost_per_run_usd": round(cost_per_run, 4),
+        "db_match_rate": round(db_match_rate, 4),
+        "cost_per_run_usd": round(total_cost, 4),
+        "avg_cost_per_conversation_usd": round(avg_cost_per_conversation, 6),
         "wall_clock_p50_s": round(p50, 1),
         "wall_clock_p95_s": round(p95, 1),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "results_path": results_path.replace("\\", "/"),
+        "timestamp": now.isoformat(),
         "notes": (
-            f"Full 30-task 5-trial dev baseline. {n} simulations evaluated. "
+            f"TAU2 sanity run. {n} simulations evaluated. "
             f"Pass@1={pass_at_1:.3f} (95% CI [{lo:.3f}, {hi:.3f}]). "
-            f"Cost per run ${cost_per_run:.4f}. p50={p50:.0f}s p95={p95:.0f}s."
+            f"Total cost ${total_cost:.4f}. p50={p50:.1f}s p95={p95:.1f}s."
         ),
     }
 
-    score_log_path = "eval/score_log.json"
+
+def main(results_path: str) -> None:
+    with open(results_path) as f:
+        data = json.load(f)
+
+    sims = data.get("simulations", [])
+    info = data.get("info", {})
+    entry = build_score_entry(results_path, info, sims)
+
+    score_log_path = "score_log.json"
     with open(score_log_path) as f:
         log = json.load(f)
 
-    # Remove any previous full baseline entry with same label
-    log = [e for e in log if e.get("label") != entry["label"]]
     log.append(entry)
 
     with open(score_log_path, "w") as f:
         json.dump(log, f, indent=2)
-    print(f"Updated {score_log_path} — pass@1={pass_at_1:.3f}, CI=[{lo:.3f},{hi:.3f}]")
+    print(
+        "Updated "
+        f"{score_log_path} — pass@1={entry['pass_at_1']:.3f}, "
+        f"CI=[{entry['ci_95_lower']:.3f},{entry['ci_95_upper']:.3f}]"
+    )
 
-    # Write/overwrite trace_log.jsonl
-    trace_path = "eval/trace_log.jsonl"
-    with open(trace_path, "w") as f:
+    # Append run traces to root trace log for auditability.
+    trace_path = "trace_log.jsonl"
+    with open(trace_path, "a", encoding="utf-8") as f:
         for s in sims:
             f.write(json.dumps(s) + "\n")
-    print(f"Wrote {len(sims)} traces to {trace_path}")
+    print(f"Appended {len(sims)} traces to {trace_path}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        # Auto-detect newest gemini-2.0-flash-001 run
         sim_base = "eval/tau2/data/simulations"
-        dirs = sorted(
-            [d for d in os.listdir(sim_base) if "gemini-2.0-flash-001" in d],
-            reverse=True,
-        )
+        dirs = sorted(os.listdir(sim_base), reverse=True)
         if not dirs:
-            print("No gemini-2.0-flash-001 simulation found.")
+            print("No simulation folders found.")
             sys.exit(1)
         path = os.path.join(sim_base, dirs[0], "results.json")
         print(f"Auto-detected: {path}")
