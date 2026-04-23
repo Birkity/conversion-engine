@@ -53,8 +53,10 @@ def _normalize(parsed: dict, company_name: str) -> dict:
             cgb[k] = parsed[k]
     if "company" not in hsb:
         hsb["company"] = company_name
+    hsb.setdefault("tenacious_status", "draft")
     if not cgb:
         cgb = {"sector": "unknown", "competitors_analyzed": 0, "gaps": [], "overall_confidence": 0.0}
+    cgb.setdefault("tenacious_status", "draft")
     return {"hiring_signal_brief": hsb, "competitor_gap_brief": cgb}
 
 

@@ -1,52 +1,43 @@
 # Conversion Engine — Tenacious Consulting Edition
 
-Automated lead generation and conversion system for B2B engineering consulting outreach. Finds high-signal prospects from public data, qualifies them against four ICP segments, and runs multi-channel nurture sequences (email → SMS → Cal.com booking) while writing every interaction to HubSpot.
+Automated lead generation and conversion system for B2B engineering consulting outreach. Finds high-signal prospects from public data, qualifies them against four ICP segments, generates intelligence briefs, composes style-guide-compliant outreach emails, and routes every interaction to HubSpot and Langfuse.
 
-> **Kill switch:** `LIVE_OUTBOUND_ENABLED=false` (default). All outbound routes to a staff sink — no real prospects contacted unless explicitly enabled.
+> **Kill switch — Rule 5 (mandatory):** `LIVE_OUTBOUND_ENABLED` defaults to `false`. All outbound (email + SMS) routes to the configured sink address. No real prospects are contacted unless explicitly enabled. This default must not be changed without Tenacious executive sign-off.
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Enrichment Pipeline                       │
-│  Crunchbase ODM → Jobs (LinkedIn) → Layoffs.fyi             │
-│  → AI Maturity Score (rule-based pre-score 0–3)             │
-│  → LLM Signal Brief (OpenRouter · qwen/qwen3-30b-a3b)       │
-│  → hiring_signal_brief.json + competitor_gap_brief.json     │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-     ┌─────────────────▼──────────────────┐
-     │        Brief Generator Module       │
-     │  agent/brief_generator/             │
-     │  Input:  traces/<co>/signals.json   │
-     │  Model:  google/gemini-2.0-flash    │
-     │  Output: hiring_signal_brief.json   │
-     │          competitor_gap_brief.json  │
-     └─────────────────┬──────────────────┘
-                       │
-        ┌──────────────▼──────────────┐
-        │      Outbound Channels      │
-        │  Email: Resend SMTP relay   │
-        │  SMS:   Africa's Talking    │
-        │  Cal:   Cal.com booking     │
-        └──────────────┬──────────────┘
-                       │
-        ┌──────────────▼──────────────┐
-        │       CRM + Tracing         │
-        │  HubSpot: contact + notes   │
-        │  Langfuse: auto-traced via  │
-        │  langfuse.openai wrapper    │
-        └──────────────┬──────────────┘
-                       │
-        ┌──────────────▼──────────────┐
-        │     Webhook Hub (Render)    │
-        │  /webhooks/resend           │
-        │  /webhooks/africastalking   │
-        │  /webhooks/cal              │
-        │  /webhooks/hubspot          │
-        └─────────────────────────────┘
+```text
+Data Sources                Enrichment Pipeline
+──────────────              ──────────────────────────────────────────────
+Crunchbase ODM  ──┐
+layoffs.fyi     ──┼──► Enrichment Pipeline ──► Brief Generator (LLM)
+Job Posts       ──┘    (jobs, layoffs,          (Tenacious ICP + bench +
+(Playwright/CSV)        maturity scorer)          tone constraints)
+                                │                        │
+                                ▼                        ▼
+                         Langfuse traces       hiring_signal_brief.json
+                                               competitor_gap_brief.json
+
+Outbound Channels (all gated by kill switch)
+──────────────────────────────────────────────
+Email (primary)   ──► Resend SMTP ──► Sink / Prospect inbox
+SMS (warm leads)  ──► Africa's Talking ──► Sink / Prospect phone
+Voice (final)     ──► Human-delivered discovery call (not automated)
+
+CRM + Observability
+──────────────────────────────────────────────
+HubSpot Developer Sandbox   ← contact upsert + enrichment note
+Langfuse cloud free tier    ← per-call cost + latency traces
+
+Webhook Hub (deployed on Render)
+──────────────────────────────────────────────
+POST /webhooks/resend           ← email reply events → on_email_reply()
+POST /webhooks/africastalking   ← SMS delivery + inbound → on_sms_reply()
+POST /webhooks/cal              ← BOOKING_CREATED → HubSpot upsert
+POST /webhooks/hubspot          ← CRM subscription events
+GET  /health                    ← liveness check
 ```
 
 ---
@@ -59,16 +50,16 @@ Automated lead generation and conversion system for B2B engineering consulting o
 git clone https://github.com/Birkity/conversion-engine.git
 cd conversion-engine
 pip install -r requirements.txt
-playwright install chromium
+playwright install chromium   # for job-post velocity scraping
 ```
 
-### 2. Seed data
+### 2. Seed data (gitignored — clone locally)
 
 ```bash
-# Crunchbase ODM (1,513 company records, Apache 2.0)
+# Crunchbase ODM (1,513 company records, Apache 2.0 license)
 git clone https://github.com/luminati-io/Crunchbase-dataset-samples seeds/crunchbase
 
-# τ²-Bench evaluation harness
+# tau2-bench evaluation harness
 git clone https://github.com/sierra-research/tau2-bench eval/tau2
 cd eval/tau2 && uv sync && cd ../..
 ```
@@ -77,124 +68,217 @@ cd eval/tau2 && uv sync && cd ../..
 
 ```bash
 cp .env.example .env
-# Fill in all keys — see .env.example for required vars
+# Fill in all keys — see table below
 ```
 
-Required variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `OPENROUTER_API_KEY` | LLM inference for enrichment + brief generation |
-| `BRIEF_GENERATOR_MODEL` | Model for brief_generator (default: `google/gemini-2.0-flash-001`) |
-| `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Email via Resend SMTP |
-| `AT_USERNAME` + `AT_API_KEY` | SMS via Africa's Talking |
-| `HUBSPOT_PRIVATE_APP_TOKEN` | HubSpot CRM |
-| `CALCOM_API_KEY` + `CALCOM_EVENT_URL` | Cal.com calendar booking |
-| `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` | Observability (Langfuse US region) |
-| `LANGFUSE_BASE_URL` | `https://us.cloud.langfuse.com` |
-| `LIVE_OUTBOUND_ENABLED` | `false` (safe default) / `true` for live sends |
-
-### 4. Smoke tests
-
-```bash
-# Verify individual external services
-python scripts/africastalking_smoketest.py
-python scripts/hubspot_smoketest.py
-python scripts/langfuse_smoketest.py
-python scripts/resend_smoketest.py
-
-# Verify all four channels in one shot (enrichment → email → HubSpot → Cal.com)
-python scripts/integration_smoketest.py SnapTrade
-
-# Verify webhook hub locally
-uvicorn webhook.main:app --reload &
-python scripts/webhook_smoketest.py
-```
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | LLM inference (brief generator + email composer) | Yes |
+| `BRIEF_GENERATOR_MODEL` | Model for LLM calls (default: `google/gemini-2.0-flash-001`) | No |
+| `RESEND_API_KEY` | Resend SMTP authentication | Yes |
+| `RESEND_FROM` | Sender address (default: `onboarding@resend.dev` on trial) | No |
+| `RESEND_WEBHOOK_SECRET` | Svix signature verification for email webhooks | Yes |
+| `OUTBOUND_SINK_EMAIL` | All outbound email routes here when kill switch is active | **Yes** |
+| `AT_USERNAME` + `AT_API_KEY` | Africa's Talking SMS sandbox | Yes |
+| `AT_SMOKE_TEST_PHONE` | All SMS routes here when kill switch is active | Yes |
+| `HUBSPOT_PRIVATE_APP_TOKEN` | HubSpot CRM — contact upsert + notes | Yes |
+| `CALCOM_API_KEY` + `CALCOM_EVENT_URL` | Cal.com booking link generation | Yes |
+| `CALCOM_WEBHOOK_SECRET` | HMAC signature on Cal.com booking events | Yes |
+| `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` | Langfuse observability | Yes |
+| `LANGFUSE_BASE_URL` | `https://us.cloud.langfuse.com` | Yes |
+| `LIVE_OUTBOUND_ENABLED` | `false` (safe default). Set `true` only with Tenacious approval. | No |
 
 ---
 
-## Usage
+## Key Scripts
 
-### Generate briefs for a company
-
-Each company lives in `traces/<company>/`. Create a `signals.json` there, then run:
+### Act I — Brief validation (intelligence layer)
 
 ```bash
+# Validate that raw signals produce structured briefs
+python scripts/act1_brief_validation.py
+python scripts/act1_brief_validation.py traces/snaptrade/signals.json
+python scripts/act1_brief_validation.py traces/wiseitech/signals.json --outdir out/wiseitech
+```
+
+Reads `signals.json` → calls `brief_generator.generate()` → saves and prints both briefs with confidence scores. Validates all required output fields. No outbound triggered.
+
+### Act II — Email execution (outbound layer)
+
+```bash
+# Generate + send to sink (kill switch active — never reaches real prospect)
+python scripts/act2_email_execution.py traces/kinanalytics
+
+# Dry run — generate only, do not send
+python scripts/act2_email_execution.py traces/kinanalytics --dry-run
+
+# Other companies
+python scripts/act2_email_execution.py traces/snaptrade
+python scripts/act2_email_execution.py traces/wiseitech
+```
+
+Loads `hiring_signal_brief.json` + `competitor_gap_brief.json` + `prospect_info.json` → generates a style-guide-compliant cold email via LLM → sends to `OUTBOUND_SINK_EMAIL` (never the prospect). Validates word count, subject length, and banned phrases before sending.
+
+### Brief generation
+
+```bash
+# Generate briefs for any company in traces/
+python scripts/test_brief.py kinanalytics
 python scripts/test_brief.py snaptrade
 python scripts/test_brief.py wiseitech
 ```
 
-This reads `traces/<company>/signals.json`, calls the LLM, and writes:
+### Full enrichment pipeline
 
-- `traces/<company>/hiring_signal_brief.json`
-- `traces/<company>/competitor_gap_brief.json`
+```bash
+python -m agent.enrichment.pipeline "Stripe"
+```
 
-**`signals.json` schema:**
+Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief.
+
+### Individual smoke tests
+
+```bash
+python scripts/resend_smoketest.py          # email
+python scripts/africastalking_smoketest.py  # SMS
+python scripts/hubspot_smoketest.py         # CRM
+python scripts/langfuse_smoketest.py        # observability
+python scripts/integration_smoketest.py     # full chain: enrich→email→HubSpot→Cal
+```
+
+### Webhook hub
+
+```bash
+# Local development
+uvicorn webhook.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Deployed on Render
+curl https://conversion-engine.onrender.com/health
+```
+
+---
+
+## signals.json Schema
+
+Each company lives in `traces/<company>/`. The `signals.json` feeds the brief generator:
 
 ```json
 {
   "company_name": "Acme Corp",
   "industries": ["SaaS", "FinTech"],
-  "headcount": "51-200",
-  "description": "One-line description.",
-  "funding_info": "Series A $12M in 2023.",
+  "headcount": "35",
+  "description": "One-line public description.",
+  "funding_info": "Series A $12M closed February 2026.",
   "layoffs": "No layoff events found in last 120 days.",
-  "jobs_now": 8,
-  "jobs_60_days": 3,
-  "tech_stack": ["Python", "AWS", "Kubernetes"],
+  "jobs_now": 7,
+  "jobs_60_days": 4,
+  "tech_stack": ["Python", "dbt", "Snowflake", "AWS"],
   "ai_roles": ["ML Engineer"],
+  "leadership_changes": "No leadership changes detected in last 90 days.",
+  "recent_news": "Series A announced February 2026.",
   "competitor_signals": [
     {
       "name": "Competitor A",
-      "funding": "Series C $80M",
-      "tech_stack": ["Python", "TensorFlow", "GCP"],
+      "funding": "Series B $60M",
+      "tech_stack": ["Python", "dbt", "Kubernetes"],
       "ai_maturity_score": 2
     }
   ]
 }
 ```
 
-### Run the full enrichment pipeline
+Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
 
-```bash
-python -m agent.enrichment.pipeline "Stripe"
+```json
+{
+  "name": "Alex Rivera",
+  "role": "CTO",
+  "email": "prospect@sink.trp1.internal",
+  "company": "Acme Corp",
+  "_policy_note": "Synthetic prospect. Rule 2: email resolves to program sink."
+}
 ```
 
-Returns the full enrichment dict including both briefs.
-
-### Use the brief generator as a module
-
-```python
-from agent.brief_generator import generate
-import json
-
-signals = json.load(open("traces/snaptrade/signals.json"))
-result = generate(signals)
-print(result["hiring_signal_brief"])
-print(result["competitor_gap_brief"])
-```
-
-### Start the webhook server
-
-```bash
-uvicorn webhook.main:app --host 0.0.0.0 --port 8000
-```
-
-Deployed at: `https://conversion-engine.onrender.com`
-
-| Endpoint | Service |
-| --- | --- |
-| `POST /webhooks/resend` | Resend email events (Svix-signed) |
-| `POST /webhooks/africastalking` | Africa's Talking SMS callbacks |
-| `POST /webhooks/cal` | Cal.com booking events |
-| `POST /webhooks/hubspot` | HubSpot CRM events |
-| `GET /health` | Liveness check |
+> **Rule 2:** `email` must be a synthetic/sink address — never a real contact's email.
 
 ---
 
-## Evaluation (τ²-Bench)
+## Project Structure
 
-Run a fresh trial (starts new simulation folder):
+```text
+conversion-engine/
+├── agent/
+│   ├── brief_generator/           ← Intelligence layer
+│   │   ├── brief_generator.py     ← generate(signals) → {hiring_brief, gap_brief}
+│   │   ├── llm_client.py          ← OpenRouter + Langfuse auto-tracing
+│   │   └── prompts.py             ← SYSTEM_PROMPT (ICP, bench, tone constraints)
+│   ├── enrichment/                ← Signal collection
+│   │   ├── pipeline.py            ← Orchestrator: all signals → briefs
+│   │   ├── crunchbase.py          ← Crunchbase ODM loader
+│   │   ├── jobs.py                ← Job velocity (Playwright first, CSV fallback)
+│   │   ├── jobs_playwright.py     ← Public LinkedIn job scraper (no login)
+│   │   ├── layoffs.py             ← layoffs.fyi CSV lookup
+│   │   ├── maturity.py            ← Rule-based AI maturity scorer (0–3)
+│   │   └── signal_brief.py        ← LLM brief call (Langfuse traced)
+│   ├── email/
+│   │   ├── handler.py             ← Resend SMTP + kill switch + draft header
+│   │   └── generator.py           ← LLM email composer (style-guide enforced)
+│   ├── sms/handler.py             ← Africa's Talking + warm-lead gate
+│   ├── hubspot/client.py          ← Contact upsert + enrichment note
+│   └── calendar/client.py         ← Cal.com booking link generator
+├── webhook/main.py                ← FastAPI hub: 5 endpoints, HMAC verified
+├── scripts/
+│   ├── act1_brief_validation.py   ← Validate brief generation end-to-end
+│   ├── act2_email_execution.py    ← Generate + send outreach email (sink)
+│   ├── test_brief.py              ← Per-company brief generation
+│   ├── integration_smoketest.py   ← Full chain smoke test
+│   ├── update_score_log.py        ← τ²-Bench results → score_log.json
+│   └── *_smoketest.py             ← Per-service smoke tests
+├── traces/
+│   ├── kinanalytics/              ← Segment 1: Series A, 35 hc, 7 open roles
+│   │   ├── signals.json
+│   │   ├── hiring_signal_brief.json
+│   │   ├── competitor_gap_brief.json
+│   │   └── prospect_info.json     ← Synthetic prospect (Rule 2)
+│   ├── snaptrade/                 ← Ambiguous: decelerating hiring, no funding
+│   └── wiseitech/                 ← Ambiguous: zero jobs, weak signal flagged
+├── policy/
+│   └── acknowledgement_signed.txt ← Rule 5 compliance acknowledgement
+├── baseline.md                    ← τ²-Bench reference baseline (PM-provided)
+├── score_log.json                 ← Official baseline: 72.7% pass@1
+├── trace_log.jsonl                ← Simulation trace records
+├── render.yaml                    ← Render deployment config
+└── requirements.txt
+```
+
+---
+
+## ICP Segments
+
+| Segment | Target | Qualifying signals |
+| --- | --- | --- |
+| 1 | Recently-funded Series A/B | $5–30M in last 180 days, 15–80 employees, ≥5 open eng roles |
+| 2 | Mid-market cost restructuring | 200–2,000 employees, layoff in last 120 days, ≥3 open roles post-layoff |
+| 3 | Engineering leadership transition | New CTO/VP Eng in last 90 days, 50–500 employees |
+| 4 | Specialized capability gap | AI maturity ≥2, specific ML/agentic build need, stack on bench |
+
+Priority when multiple fire: Segment 2 > 3 > 4 > 1. Abstain if confidence < 0.6.
+
+---
+
+## τ²-Bench Evaluation
+
+Reference baseline (PM-provided, committed to `score_log.json`):
+
+| Metric | Value |
+| --- | --- |
+| Domain | retail |
+| pass@1 | **72.7%** (95% CI: 0.65–0.79) |
+| Tasks / Trials | 30 tasks × 5 trials = 150 simulations |
+| p50 latency | 105.95 s |
+| p95 latency | 551.65 s |
+
+Run a fresh evaluation trial:
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"; $env:NO_COLOR="1"
@@ -206,101 +290,38 @@ uv run --project eval/tau2 tau2 run `
   --max-concurrency 2
 ```
 
-Resume a stopped run (skips already-completed simulations):
-
-```powershell
-$env:PYTHONIOENCODING="utf-8"; $env:NO_COLOR="1"
-uv run --project eval/tau2 tau2 run `
-  --domain retail `
-  --agent-llm "openrouter/google/gemini-2.0-flash-001" `
-  --user-llm "openrouter/meta-llama/llama-3.2-3b-instruct" `
-  --num-tasks 30 --num-trials 5 `
-  --max-concurrency 2 --auto-resume
-```
-
-After any run, update the score log:
-
-```bash
-python scripts/update_score_log.py
-```
-
-See `score_log.json` for recorded run summaries and
-`eval/tau2/data/simulations/<run_id>/results.json` for full raw evaluation outputs.
-
 ---
 
-## Project Structure
+## Data Handling Policy Summary
 
-```
-conversion-engine/
-├── agent/
-│   ├── brief_generator/        ← Standalone brief generator module (NEW)
-│   │   ├── __init__.py         ← Exports generate()
-│   │   ├── brief_generator.py  ← Main logic: generate(signals) -> dict
-│   │   ├── llm_client.py       ← OpenRouter call + Langfuse auto-tracing
-│   │   └── prompts.py          ← SYSTEM_PROMPT + USER_TEMPLATE
-│   ├── enrichment/             ← Full enrichment pipeline
-│   │   ├── pipeline.py         ← Orchestrator: Crunchbase→Jobs→Layoffs→LLM
-│   │   ├── signal_brief.py     ← LLM prompt + OpenRouter call (Langfuse traced)
-│   │   ├── crunchbase.py       ← Seed data loader + field extractors
-│   │   ├── jobs.py             ← LinkedIn job post velocity
-│   │   ├── layoffs.py          ← layoffs.fyi CSV lookup
-│   │   └── maturity.py         ← Rule-based AI maturity pre-scorer (0–3)
-│   ├── email/handler.py        ← Resend SMTP outbound + signal-grounded template
-│   ├── sms/handler.py          ← Africa's Talking send + nurture SMS
-│   ├── hubspot/client.py       ← Contact upsert + enrichment note
-│   └── calendar/client.py      ← Cal.com booking link generator
-├── webhook/main.py             ← FastAPI webhook hub (deployed on Render)
-├── eval/
-│   └── tau2/                   ← τ²-Bench checkout (gitignored)
-├── scripts/
-│   ├── test_brief.py           ← Run brief generator per company (NEW)
-│   ├── integration_smoketest.py← End-to-end: enrich→email→HubSpot→Cal (NEW)
-│   ├── update_score_log.py     ← Parse tau2 results → score_log.json
-│   ├── africastalking_smoketest.py
-│   ├── hubspot_smoketest.py
-│   ├── langfuse_smoketest.py
-│   ├── resend_smoketest.py
-│   └── webhook_smoketest.py
-├── seeds/
-│   ├── crunchbase/             ← 1,513 company records (gitignored, clone locally)
-│   ├── layoffs/                ← layoffs.fyi CSV
-│   └── job_posts/              ← LinkedIn job postings (gitignored — 493 MB)
-├── traces/
-│   ├── snaptrade/
-│   │   ├── signals.json        ← Brief generator input
-│   │   ├── hiring_signal_brief.json
-│   │   ├── competitor_gap_brief.json
-│   │   └── enrichment_sample.json
-│   ├── wiseitech/
-│   │   ├── signals.json        ← Brief generator input
-│   │   ├── hiring_signal_brief.json
-│   │   ├── competitor_gap_brief.json
-│   │   └── enrichment_sample.json
-│   └── README.md
-├── score_log.json              ← τ²-Bench run summary history
-├── trace_log.jsonl             ← Appended simulation traces
-├── Procfile                    ← Render start command
-├── render.yaml                 ← Render service config
-└── requirements.txt
-```
-
----
-
-## ICP Segments (Tenacious)
-
-| Segment | Description | Signal |
+| Rule | Requirement | Status |
 | --- | --- | --- |
-| 1 | Recently-funded Series A/B | $5–30M in last 6 months, 15–80 employees |
-| 2 | Mid-market cost restructuring | 200–2,000 employees, post-layoff |
-| 3 | Engineering leadership transition | New CTO/VP Eng in last 90 days |
-| 4 | Specialized capability gap | ML/agentic/data project needing external skills, AI maturity ≥ 2 |
+| 1 | No real Tenacious customer data | No CRM exports or live deal data received |
+| 2 | All prospects are synthetic | `prospect_info.json` uses fake name + sink domain |
+| 3 | Seed materials not redistributed | `seeds/` is gitignored |
+| 4 | No hardcoded real emails in code | `OUTBOUND_SINK_EMAIL` required from `.env` only |
+| 5 | Kill switch active by default | `OUTBOUND_ENABLED=False` when env vars unset |
+| 6 | Tenacious output marked draft | `tenacious_status="draft"` + `X-Tenacious-Status: draft` header |
+| 7 | Minimal PII in traces | First name + email only; no home address, payment info |
+| 8 | No internal Tenacious data in public repo | Bench capacity as stack names only, no headcount |
+
+Full policy: `seeds/tenacious_sales_data/tenacious_sales_data/policy/data_handling_policy.md` (gitignored)
 
 ---
 
-## Data Handling
+## Security Audit (April 23, 2026)
 
-- All prospect data during challenge week is synthetic (public Crunchbase + fictitious contacts)
-- `LIVE_OUTBOUND_ENABLED=false` by default — all outbound routes to `OUTBOUND_SINK_EMAIL` / `AT_SMOKE_TEST_PHONE`
-- No real Tenacious customer data used
-- Seed materials (sales deck, pricing, case studies) deleted at week end per license; code kept
+A full data-leakage audit was run against the committed repository. Findings and dispositions:
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| `.env` contains real API keys | Critical | `.env` is in `.gitignore` line 1 — **not tracked by git**. Keys are local only. |
+| `Birkity@10academy.org` hardcoded as default in `scripts/resend_smoketest.py` | Medium | **Fixed** — default removed; script now requires `RESEND_SMOKE_TEST_EMAIL` in `.env` or exits with an error instead of silently emailing a real inbox. |
+| Personal Cal.com slug as fallback in `agent/calendar/client.py` | Low | **Intentional** — this is the programme-specific booking link, not a data leak. Remains as-is. |
+| `prospect_info.json` contact data | Check | All prospects use synthetic `@sink.trp1.internal` addresses. Rule 2 compliant. |
+| `score_log.json` and `trace_log.jsonl` committed | Check | **Intentional** — required submission deliverables. No PII in either file. |
+| `interim_report.tex` contains full name | Check | `*.tex` is in `.gitignore` — file is **not tracked by git**. |
+| LLM prompts in `prompts.py` and `generator.py` | Check | All prompts use parametric templates. No real data embedded. |
+| `policy/acknowledgement_signed.txt` contains full name | Check | **Intentional** — signed policy acknowledgement required by the programme. |
+
+**Verdict:** No credentials, personal contact data, or real prospect PII are committed to the repository. One medium-severity hardcoded email default was found and fixed.

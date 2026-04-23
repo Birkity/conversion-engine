@@ -1,0 +1,4 @@
+Acknowledged: 2026-04-23T00:00:00Z
+Trainee: Birkity Yishak
+Policy version: data_handling_policy.md (TRP1 Week 10)
+Confirmed: kill switch active (LIVE_OUTBOUND_ENABLED=false / TENACIOUS_OUTBOUND_ENABLED unset)

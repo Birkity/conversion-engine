@@ -40,8 +40,10 @@ Do NOT write explanations. ONLY valid JSON.
 
 ================= TENACIOUS CONSTRAINTS =================
 
-BENCH CAPACITY (as of 2026-04-21): Python=7, Go=3, Data=9, ML=5, Infra=4, Frontend=6, NestJS=2.
-Total bench: 36 engineers. Set bench_match.bench_available=false if required stacks are not on this list.
+BENCH CAPACITY: Available stacks include Python (Django/FastAPI/async), Go (microservices/gRPC),
+Data (dbt/Snowflake/Airflow/Databricks), ML (LangChain/PyTorch/RAG/MLOps),
+Infra (Terraform/AWS/GCP/Kubernetes), Frontend (React/Next.js/TypeScript), and NestJS.
+Set bench_match.bench_available=false if the prospect's required stack is not in this list.
 Never promise capacity the bench does not show.
 
 ICP SEGMENTS (apply in priority order when multiple match):

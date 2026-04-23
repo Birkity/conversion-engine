@@ -51,7 +51,10 @@ def main() -> int:
 
     api_key = os.getenv("RESEND_API_KEY")
     from_addr = os.getenv("RESEND_FROM", "onboarding@resend.dev")
-    to = os.getenv("RESEND_SMOKE_TEST_EMAIL", "Birkity@10academy.org")
+    to = os.getenv("RESEND_SMOKE_TEST_EMAIL", "")
+    if not to:
+        print("Missing RESEND_SMOKE_TEST_EMAIL in .env", file=sys.stderr)
+        return 1
 
     if not api_key:
         print("Missing RESEND_API_KEY in .env", file=sys.stderr)

@@ -80,15 +80,29 @@ def get_ai_roles(company_name: str, days: int = 90) -> list[str]:
 
 def job_velocity_summary(company_name: str) -> dict:
     """
-    Returns dict with jobs_now (last 30d), jobs_60d_ago (30-90d window),
-    and ai_roles (last 90d). Falls back to -1 values if file absent.
+    Returns dict with jobs_now (last 30d), jobs_60_days (30-90d window),
+    ai_roles (last 90d), data_available, and source.
+    Tries Playwright public scrape first; falls back to seed CSV.
     """
+    try:
+        from agent.enrichment.jobs_playwright import scrape_job_velocity
+        result = scrape_job_velocity(company_name)
+        if result.get("data_available"):
+            result["ai_roles"] = get_ai_roles(company_name, days=90)
+            return result
+    except Exception:
+        pass
+
+    # Fallback: seed CSV (gitignored; -1 when absent)
     jobs_now = count_jobs(company_name, days=30)
-    jobs_older = count_jobs(company_name, days=90) - (count_jobs(company_name, days=30) if jobs_now >= 0 else 0)
+    jobs_90 = count_jobs(company_name, days=90)
+    jobs_older = (jobs_90 - jobs_now) if jobs_now >= 0 else -1
     ai_roles = get_ai_roles(company_name, days=90)
     return {
         "jobs_now": jobs_now,
-        "jobs_60_days": max(jobs_older, 0),
+        "jobs_60_days": max(jobs_older, 0) if jobs_older >= 0 else -1,
         "ai_roles": ai_roles,
         "data_available": jobs_now >= 0,
+        "source": "seed_csv",
+        "confidence": 0.9 if jobs_now >= 0 else 0.0,
     }

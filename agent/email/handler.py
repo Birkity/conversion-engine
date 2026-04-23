@@ -2,10 +2,13 @@
 Outbound email handler via Resend SMTP relay.
 Uses SMTP (not REST) — Resend REST is Cloudflare-blocked from ET.
 """
+import logging
 import os
 import smtplib
 import ssl
 from email.mime.text import MIMEText
+
+log = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 
@@ -17,8 +20,18 @@ SMTP_USER = "resend"
 SMTP_PASS = os.getenv("RESEND_API_KEY", "")
 FROM_ADDR = os.getenv("RESEND_FROM", "onboarding@resend.dev")
 
-KILL_SWITCH = os.getenv("LIVE_OUTBOUND_ENABLED", "false").lower() == "true"
-SINK_ADDRESS = os.getenv("OUTBOUND_SINK_EMAIL", "birkity.yishak.m@gmail.com")
+# OUTBOUND_ENABLED is True only when explicitly set in .env.
+# Default is False — all mail routes to the sink (Rule 5).
+OUTBOUND_ENABLED = (
+    os.getenv("TENACIOUS_OUTBOUND_ENABLED", "false").lower() == "true"
+    or os.getenv("LIVE_OUTBOUND_ENABLED", "false").lower() == "true"
+)
+# Legacy alias kept for callers that imported KILL_SWITCH by name.
+# KILL_SWITCH=True means live mode ON (outbound enabled) — see OUTBOUND_ENABLED.
+KILL_SWITCH = OUTBOUND_ENABLED
+
+# OUTBOUND_SINK_EMAIL must be set in .env — no hardcoded default (Rule 4).
+SINK_ADDRESS = os.getenv("OUTBOUND_SINK_EMAIL", "")
 
 
 def send(to: str, subject: str, body: str, html: bool = False) -> dict:
@@ -32,6 +45,9 @@ def send(to: str, subject: str, body: str, html: bool = False) -> dict:
     msg["Subject"] = subject if KILL_SWITCH else f"[SINK TEST → {to}] {subject}"
     msg["From"] = FROM_ADDR
     msg["To"] = actual_to
+
+    # Rule 6: all Tenacious-branded outbound must carry the draft header
+    msg["X-Tenacious-Status"] = "draft"
 
     context = ssl.create_default_context()
     try:
@@ -80,3 +96,8 @@ Tenacious Consulting and Outsourcing
 [LIVE_OUTBOUND_ENABLED={KILL_SWITCH} — {'live send' if KILL_SWITCH else 'routed to sink'}]
 """
     return send(to, subject, body)
+
+
+def on_email_reply(email_id: str, event_type: str) -> None:
+    """Downstream hook for inbound email events from Resend webhook. Extend to route to CRM."""
+    log.info("email_event id=%s type=%s", email_id, event_type)
