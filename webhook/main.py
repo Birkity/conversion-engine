@@ -58,10 +58,17 @@ async def resend_webhook(request: Request):
         if not _svix_verify(RESEND_WEBHOOK_SECRET_BYTES, msg_id, msg_ts, body, sig):
             log.warning("resend svix signature mismatch — processing anyway in dev mode")
 
-    payload = json.loads(body) if body else {}
+    try:
+        payload = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
+
     event_type = payload.get("type", "unknown")
     email_id = payload.get("data", {}).get("email_id", "")
     log.info("resend event=%s email_id=%s", event_type, email_id)
+
+    from agent.email.handler import on_email_reply
+    on_email_reply(email_id, event_type)
 
     return JSONResponse({"received": True, "type": event_type}, status_code=202)
 
@@ -77,13 +84,18 @@ async def at_webhook(request: Request):
         log.info("at delivery_report id=%s status=%s", data.get("id"), data.get("status"))
     else:
         body = await request.body()
-        data = json.loads(body) if body else {}
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return JSONResponse({"error": "malformed JSON"}, status_code=400)
         sms = data.get("data", {})
-        log.info(
-            "at inbound from=%s text=%r",
-            sms.get("Message", {}).get("From"),
-            sms.get("Message", {}).get("Text", "")[:80],
-        )
+        msg = sms.get("Message", {})
+        from_number = msg.get("From", "")
+        text = msg.get("Text", "")
+        log.info("at inbound from=%s text=%r", from_number, text[:80])
+
+        from agent.sms.handler import on_sms_reply
+        on_sms_reply(from_number, text)
 
     return JSONResponse({"received": True}, status_code=200)
 
@@ -101,10 +113,35 @@ async def cal_webhook(request: Request):
         if not hmac.compare_digest(sig, expected):
             log.warning("calcom signature mismatch — processing anyway in dev mode")
 
-    payload = json.loads(body) if body else {}
+    try:
+        payload = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
+
     trigger = payload.get("triggerEvent", "unknown")
-    attendee = payload.get("payload", {}).get("attendees", [{}])[0].get("email", "")
-    log.info("calcom event=%s attendee=%s", trigger, attendee)
+    booking = payload.get("payload", {})
+    attendees = booking.get("attendees", [{}])
+    attendee = attendees[0] if attendees else {}
+    attendee_email = attendee.get("email", "")
+    attendee_name = attendee.get("name", "")
+    log.info("calcom event=%s attendee=%s", trigger, attendee_email)
+
+    if trigger == "BOOKING_CREATED" and attendee_email:
+        name_parts = attendee_name.split(" ", 1)
+        first = name_parts[0]
+        last = name_parts[1] if len(name_parts) > 1 else ""
+        company = booking.get("organizer", {}).get("name", "")
+        try:
+            from agent.hubspot.client import upsert_contact
+            result = upsert_contact(
+                email=attendee_email,
+                first_name=first,
+                last_name=last,
+                company=company,
+            )
+            log.info("hubspot upsert email=%s status=%s", attendee_email, result.get("status"))
+        except Exception as exc:
+            log.error("hubspot upsert failed: %s", exc)
 
     return JSONResponse({"received": True, "triggerEvent": trigger}, status_code=200)
 
@@ -121,7 +158,10 @@ async def hubspot_webhook(request: Request):
         if not hmac.compare_digest(sig, expected):
             log.warning("hubspot signature mismatch — processing anyway in dev mode")
 
-    events = json.loads(body) if body else []
+    try:
+        events = json.loads(body) if body else []
+    except json.JSONDecodeError:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
     if not isinstance(events, list):
         events = [events]
     for ev in events:
