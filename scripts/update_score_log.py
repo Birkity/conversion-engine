@@ -82,7 +82,7 @@ def build_score_entry(results_path: str, info: dict, sims: list[dict]) -> dict:
 
     return {
         "run_id": f"tau2-retail-{now.strftime('%Y%m%d-%H%M%S')}",
-        "label": "retail sanity run (5 tasks)",
+        "label": f"retail sanity run ({n} tasks)",
         "model_agent": agent_llm,
         "model_user": user_llm,
         "domain": info.get("domain", "retail"),

@@ -1,16 +1,16 @@
 {
-  "sector": "Developer APIs",
-  "competitors_analyzed": 1,
+  "sector": "FinTech",
+  "competitors_analyzed": 3,
   "prospect_ai_score": 0,
   "prospect_position_in_sector": "bottom_quartile",
   "gaps": [
     {
-      "practice": "AI/ML Integration",
-      "evidence_in_top_quartile": "Wit.ai shows no AI/ML signals, but other competitors may have higher maturity.",
-      "evidence_at_prospect": "SnapTrade has no AI/ML roles or stack signals.",
-      "gap_insight": "SnapTrade lacks AI/ML integration capabilities compared to industry peers.",
-      "confidence": 0.4
+      "practice": "Modern ML Stack",
+      "evidence_in_top_quartile": "Plaid utilizes TensorFlow.",
+      "evidence_at_prospect": "SnapTrade's stack does not include modern ML tools.",
+      "gap_insight": "Competitors are leveraging modern ML stacks, while SnapTrade's current stack lacks these capabilities.",
+      "confidence": 0.8
     }
   ],
-  "overall_confidence": 0.4
+  "overall_confidence": 0.7
 }

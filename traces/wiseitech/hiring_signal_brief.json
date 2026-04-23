@@ -1,15 +1,15 @@
 {
-  "company": "WISEiTECH",
+  "company": "WiseiTech",
   "hiring_velocity": {
-    "direction": "stable",
-    "delta_pct": null,
-    "signal_strength": "insufficient_data",
-    "observation": "No job posts observed in the last 60 days or currently, indicating no immediate hiring activity."
+    "direction": "decelerating",
+    "delta_pct": -100.0,
+    "signal_strength": "weak",
+    "observation": "Hiring activity has decreased in the last 30 days."
   },
   "budget_urgency": {
-    "level": "unknown",
+    "level": "low",
     "signal": null,
-    "runway_pressure": "No recent funding events detected, suggesting potential runway pressure but no clear evidence."
+    "runway_pressure": "Early-stage companies without funding may face budget constraints."
   },
   "cost_pressure": {
     "present": false,
@@ -17,9 +17,14 @@
     "icp_segment_implication": null
   },
   "engineering_maturity": {
-    "stack_sophistication": "low",
-    "detected_stack": [],
-    "bench_match_notes": "No tech stack detected, indicating low engineering sophistication or incomplete data."
+    "stack_sophistication": "medium",
+    "detected_stack": [
+      "Python",
+      "Big Data",
+      "Machine Learning",
+      "Analytics"
+    ],
+    "bench_match_notes": "The tech stack suggests a focus on data analysis and model building."
   },
   "ai_maturity_score": 0,
   "ai_maturity_rationale": {
@@ -28,7 +33,7 @@
     "executive_ai_signals": "none",
     "named_ai_leadership": false
   },
-  "confidence": 0.3,
-  "icp_segment": "ambiguous",
-  "recommended_pitch_angle": "WISEiTECH may benefit from strategic consulting to enhance their AI capabilities and engineering infrastructure."
+  "confidence": 0.7,
+  "icp_segment": "Segment 2",
+  "recommended_pitch_angle": "Tenacious can help WiseiTech build a scalable AI platform to enhance their analytics offerings."
 }

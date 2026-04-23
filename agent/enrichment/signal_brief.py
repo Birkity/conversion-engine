@@ -10,7 +10,7 @@ import sys
 sys.set_int_max_str_digits(0)
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from langfuse.openai import OpenAI
 
 load_dotenv()
 
@@ -239,6 +239,7 @@ def generate_briefs(
         ],
         temperature=0.0,
         response_format={"type": "json_object"},
+        name="generate_briefs",
     )
 
     raw = response.choices[0].message.content
