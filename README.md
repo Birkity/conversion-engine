@@ -306,3 +306,22 @@ uv run --project eval/tau2 tau2 run `
 | 8 | No internal Tenacious data in public repo | Bench capacity as stack names only, no headcount |
 
 Full policy: `seeds/tenacious_sales_data/tenacious_sales_data/policy/data_handling_policy.md` (gitignored)
+
+---
+
+## Security Audit (April 23, 2026)
+
+A full data-leakage audit was run against the committed repository. Findings and dispositions:
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| `.env` contains real API keys | Critical | `.env` is in `.gitignore` line 1 — **not tracked by git**. Keys are local only. |
+| `Birkity@10academy.org` hardcoded as default in `scripts/resend_smoketest.py` | Medium | **Fixed** — default removed; script now requires `RESEND_SMOKE_TEST_EMAIL` in `.env` or exits with an error instead of silently emailing a real inbox. |
+| Personal Cal.com slug as fallback in `agent/calendar/client.py` | Low | **Intentional** — this is the programme-specific booking link, not a data leak. Remains as-is. |
+| `prospect_info.json` contact data | Check | All prospects use synthetic `@sink.trp1.internal` addresses. Rule 2 compliant. |
+| `score_log.json` and `trace_log.jsonl` committed | Check | **Intentional** — required submission deliverables. No PII in either file. |
+| `interim_report.tex` contains full name | Check | `*.tex` is in `.gitignore` — file is **not tracked by git**. |
+| LLM prompts in `prompts.py` and `generator.py` | Check | All prompts use parametric templates. No real data embedded. |
+| `policy/acknowledgement_signed.txt` contains full name | Check | **Intentional** — signed policy acknowledgement required by the programme. |
+
+**Verdict:** No credentials, personal contact data, or real prospect PII are committed to the repository. One medium-severity hardcoded email default was found and fixed.
