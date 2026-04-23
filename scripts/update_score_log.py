@@ -43,7 +43,7 @@ def is_read_action(action_check: dict) -> bool:
 def compute_action_accuracy(sims: list[dict]) -> tuple[int, int, int, int]:
     read_ok = sum_r = write_ok = sum_w = 0
     for s in sims:
-        for ac in s.get("reward_info", {}).get("action_checks", []):
+        for ac in ((s.get("reward_info") or {}).get("action_checks") or []):
             ok = bool(ac.get("action_match", False))
             if is_read_action(ac):
                 read_ok += int(ok)
@@ -61,7 +61,7 @@ def build_score_entry(results_path: str, info: dict, sims: list[dict]) -> dict:
     agent_costs = [float(s.get("agent_cost", 0) or 0.0) for s in sims]
     user_costs = [float(s.get("user_cost", 0) or 0.0) for s in sims]
     db_matches = [
-        bool(s.get("reward_info", {}).get("db_check", {}).get("db_match", False))
+        bool(((s.get("reward_info") or {}).get("db_check") or {}).get("db_match", False))
         for s in sims
     ]
     read_ok, sum_r, write_ok, sum_w = compute_action_accuracy(sims)

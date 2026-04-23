@@ -13,8 +13,12 @@ seeds/crunchbase/
 # Large local snapshots; re-fetch with scripts/fetch_seed_data.ps1
 seeds/job_posts/linkedinjobs_postings.csv
 seeds/layoffs/
+*.doc
+*.docx
 
 Supporting Scenario of The Conversion Engine.md
 TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md
+Draft Tenacious Sales Materials Template.md
 eval/
 *.tex
+seeds/
