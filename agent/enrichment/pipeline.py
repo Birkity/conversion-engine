@@ -1,6 +1,6 @@
 """
 Enrichment pipeline orchestrator.
-Chains: Crunchbase → Jobs → Layoffs → Maturity pre-score → LLM signal brief.
+Chains: Crunchbase -> Jobs -> Layoffs -> Maturity pre-score -> LLM signal brief.
 
 Usage:
     from agent.enrichment.pipeline import enrich
@@ -8,7 +8,6 @@ Usage:
     # result contains: crunchbase_record, hiring_signal_brief, competitor_gap_brief
 """
 import json
-import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -46,6 +45,7 @@ def _find_sector_peers(record: dict, limit: int = 10) -> list[dict]:
     industries = crunchbase.extract_industries(record)
     if not industries:
         return []
+
     target_industry = industries[0].lower()
     all_rows = crunchbase._load()
     peers = []
@@ -53,7 +53,7 @@ def _find_sector_peers(record: dict, limit: int = 10) -> list[dict]:
         if row.get("name") == record.get("name"):
             continue
         row_industries = crunchbase.extract_industries(row)
-        if any(target_industry in ind.lower() for ind in row_industries):
+        if any(target_industry == i.lower() for i in row_industries):
             peers.append(row)
         if len(peers) >= limit:
             break
@@ -99,7 +99,28 @@ def enrich(company_name: str) -> dict:
     peers = _find_sector_peers(record) if cb_found else []
     competitor_signals = _build_competitor_signals(peers)
 
-    # 6. LLM signal brief generation
+    # 6. Per-source confidence used by downstream LLM prompt calibration.
+    layoff_events = layoffs.lookup(company_name)
+    if layoff_events:
+        layoff_confidence = 1.0
+    elif layoffs._LAYOFFS_PATH.exists():
+        layoff_confidence = 0.5
+    else:
+        layoff_confidence = 0.0
+
+    if pre_score > 0:
+        maturity_confidence = round(min(pre_score / 3, 1.0) * 0.8 + 0.2, 2)
+    else:
+        maturity_confidence = 0.2
+
+    signal_confidence_dict = {
+        "crunchbase": 1.0 if cb_found else 0.0,
+        "job_velocity": job_data.get("confidence", 0.0),
+        "layoffs": layoff_confidence,
+        "ai_maturity": maturity_confidence,
+    }
+
+    # 7. LLM signal brief generation
     briefs = generate_briefs(
         company_name=company_name,
         funding_info=funding_summary,
@@ -114,25 +135,8 @@ def enrich(company_name: str) -> dict:
         description=description,
         leadership_changes=leadership_changes,
         recent_news=recent_news,
+        signal_confidence=signal_confidence_dict,
     )
-
-    # Per-signal confidence: how much we trust each data source for this company.
-    # crunchbase: binary — either we found the record or we didn't.
-    # job_velocity: from the jobs module (0.9 from CSV, 0.7 from Playwright, 0.0 if absent).
-    # layoffs: 1.0 if events found, 0.5 if seed loaded but no match, 0.0 if seed absent.
-    # ai_maturity: scaled from pre-score (more signal hits = more confidence).
-    layoff_events = layoffs.lookup(company_name)
-    if layoff_events:
-        layoff_confidence = 1.0
-    elif layoffs._LAYOFFS_PATH.exists():
-        layoff_confidence = 0.5
-    else:
-        layoff_confidence = 0.0
-
-    if pre_score > 0:
-        maturity_confidence = round(min(pre_score / 3, 1.0) * 0.8 + 0.2, 2)
-    else:
-        maturity_confidence = 0.2
 
     return {
         "company": company_name,
@@ -142,18 +146,14 @@ def enrich(company_name: str) -> dict:
         "industries": industries,
         "pre_score_ai_maturity": pre_score,
         "pre_score_rationale": pre_rationale,
-        "signal_confidence": {
-            "crunchbase": 1.0 if cb_found else 0.0,
-            "job_velocity": job_data.get("confidence", 0.0),
-            "layoffs": layoff_confidence,
-            "ai_maturity": maturity_confidence,
-        },
+        "signal_confidence": signal_confidence_dict,
         **briefs,
     }
 
 
 if __name__ == "__main__":
     import sys
+
     name = sys.argv[1] if len(sys.argv) > 1 else "Stripe"
     result = enrich(name)
     print(json.dumps(result, indent=2))

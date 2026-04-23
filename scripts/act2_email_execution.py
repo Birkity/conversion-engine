@@ -160,6 +160,24 @@ def main() -> int:
     print(f"  Email address: synthetic format confirmed")
     _assert_kill_switch_active()
 
+    # Upsert contact with phone so inbound SMS replies can be routed back.
+    if prospect.get("phone"):
+        _section("HubSpot Contact Upsert (Phone for SMS Routing)")
+        try:
+            from agent.hubspot.client import upsert_contact
+
+            name_parts = prospect_name.split(" ", 1)
+            result = upsert_contact(
+                email=prospect_email,
+                first_name=name_parts[0] if name_parts else "",
+                last_name=name_parts[1] if len(name_parts) > 1 else "",
+                company=company,
+                phone=prospect.get("phone", ""),
+            )
+            print(f"  HubSpot upsert status: {result.get('status')}")
+        except Exception as exc:
+            print(f"  WARNING: HubSpot upsert skipped due to error: {exc}")
+
     # ── Generate Cal.com booking link ────────────────────────────
     cal_url = booking_link(
         prospect_name=prospect_name,

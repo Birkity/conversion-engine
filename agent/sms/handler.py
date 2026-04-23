@@ -73,6 +73,25 @@ def on_sms_reply(from_number: str, text: str) -> None:
             update_contact(contact_id, {"hs_lead_status": "IN_PROGRESS"})
             add_note(contact_id, f"Inbound SMS reply from {from_number}:\n{text[:500]}")
             log.info("hubspot updated contact_id=%s status=IN_PROGRESS sms_reply", contact_id)
+
+            # Alert consultant via email sink.
+            try:
+                from agent.email.handler import send as _send_email
+
+                sink = os.getenv("OUTBOUND_SINK_EMAIL", "")
+                if sink:
+                    _send_email(
+                        to=sink,
+                        subject=f"[CONV-ENGINE] Inbound SMS reply from {from_number}",
+                        body=(
+                            "A prospect replied via SMS.\n\n"
+                            f"From: {from_number}\n"
+                            "Message:\n"
+                            f"{text[:500]}"
+                        ),
+                    )
+            except Exception as exc:
+                log.error("failed to send inbound SMS consultant alert: %s", exc)
         else:
             log.warning("inbound_sms no hubspot contact matched phone=%s", from_number)
     except Exception as exc:

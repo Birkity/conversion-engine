@@ -30,8 +30,10 @@ CRM + Observability
 ──────────────────────────────────────────────
 HubSpot Developer Sandbox   ← contact upsert + enrichment note
                             ← inbound SMS reply → lead status IN_PROGRESS + note
+                            ← inbound SMS reply → consultant sink email alert
                             ← BOOKING_CANCELLED → lead status OPEN + note
-                            ← BOOKING_RESCHEDULED → note on contact
+                            ← BOOKING_RESCHEDULED → note on contact (with time)
+                            ← BOOKING_CREATED → detailed booking note + lead status IN_PROGRESS
 Langfuse cloud free tier    ← per-call cost + latency traces
 
 Webhook Hub (deployed on Render)
@@ -40,8 +42,9 @@ POST /webhooks/resend           ← email reply events → on_email_reply()
 POST /webhooks/africastalking   ← SMS delivery + inbound → on_sms_reply()
                                   → searches HubSpot by phone → updates status + note
 POST /webhooks/cal              ← BOOKING_CREATED → HubSpot upsert
+                                  + detailed note (title/time/link) + status=IN_PROGRESS
                                   BOOKING_CANCELLED → status=OPEN + note
-                                  BOOKING_RESCHEDULED → note on contact
+                                  BOOKING_RESCHEDULED → note on contact (+time when available)
 POST /webhooks/hubspot          ← CRM subscription events
 GET  /health                    ← liveness check
 ```
@@ -142,6 +145,10 @@ python -m agent.enrichment.pipeline "Stripe"
 
 Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief. Returns `signal_confidence` dict with per-source confidence scores (crunchbase, job_velocity, layoffs, ai_maturity).
 
+Signal confidence is now propagated into both brief paths:
+- `agent/enrichment/pipeline.py` passes the computed per-source confidence map into `generate_briefs()`.
+- `agent/brief_generator/brief_generator.py` derives per-source confidence from `signals.json` for the Act I path and injects it into the LLM prompt.
+
 ### Individual smoke tests
 
 ```bash
@@ -200,12 +207,13 @@ Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
   "name": "Alex Rivera",
   "role": "CTO",
   "email": "prospect@sink.trp1.internal",
+  "phone": "+15559999001",
   "company": "Acme Corp",
   "_policy_note": "Synthetic prospect. Rule 2: email resolves to program sink."
 }
 ```
 
-> **Rule 2:** `email` must be a synthetic/sink address — never a real contact's email.
+> **Rule 2:** `email` and `phone` must be synthetic/sink contact details — never real contact info.
 
 ---
 
