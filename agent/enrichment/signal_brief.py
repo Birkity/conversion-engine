@@ -150,6 +150,13 @@ Recent News:
 ================= COMPETITORS =================
 
 {competitor_signals}
+
+================= SIGNAL QUALITY =================
+
+Per-source confidence (0.0=no data, 1.0=verified). Calibrate your output confidence
+and use ask-not-assert phrasing for signals below 0.5.
+
+{signal_confidence}
 """
 
 
@@ -206,6 +213,7 @@ def generate_briefs(
     description: str = "",
     leadership_changes: str = "",
     recent_news: str = "",
+    signal_confidence: dict | None = None,
 ) -> dict:
     """Call the LLM and return parsed hiring_signal_brief + competitor_gap_brief."""
     if isinstance(tech_stack, list):
@@ -214,6 +222,11 @@ def generate_briefs(
         ai_roles = ", ".join(ai_roles) if ai_roles else "None found"
     if isinstance(industries, list):
         industries = ", ".join(industries) if industries else "Unknown"
+
+    if signal_confidence:
+        sc_str = " | ".join(f"{k}: {v:.2f}" for k, v in signal_confidence.items())
+    else:
+        sc_str = "not available"
 
     user_msg = USER_TEMPLATE.format(
         company_name=company_name,
@@ -229,6 +242,7 @@ def generate_briefs(
         ai_roles=ai_roles,
         recent_news=recent_news or "No recent news found",
         competitor_signals=competitor_signals or "No competitor data available",
+        signal_confidence=sc_str,
     )
 
     response = _client.chat.completions.create(

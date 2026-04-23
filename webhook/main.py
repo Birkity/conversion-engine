@@ -140,6 +140,28 @@ async def cal_webhook(request: Request):
                 company=company,
             )
             log.info("hubspot upsert email=%s status=%s", attendee_email, result.get("status"))
+
+            # Add booking context note + move status to in-progress.
+            from agent.hubspot.client import search_contact, add_note, update_contact
+
+            contact_id = search_contact("email", attendee_email)
+            if contact_id:
+                start_time = booking.get("startTime", "not specified")
+                title = booking.get("title", "Discovery call")
+                meeting_url = (booking.get("metadata") or {}).get("videoCallUrl", "")
+
+                note_lines = [
+                    "Cal.com BOOKING_CREATED",
+                    f"Title: {title}",
+                    f"Time: {start_time}",
+                    f"Attendee: {attendee_name} ({attendee_email})",
+                ]
+                if meeting_url:
+                    note_lines.append(f"Video link: {meeting_url}")
+
+                add_note(contact_id, "\n".join(note_lines))
+                update_contact(contact_id, {"hs_lead_status": "IN_PROGRESS"})
+                log.info("hubspot booking note + status update contact_id=%s", contact_id)
         except Exception as exc:
             log.error("hubspot upsert failed: %s", exc)
 
@@ -148,7 +170,10 @@ async def cal_webhook(request: Request):
             from agent.hubspot.client import search_contact, update_contact, add_note
             contact_id = search_contact("email", attendee_email)
             if contact_id:
+                start_time = booking.get("startTime", "")
                 note = f"Cal.com {trigger}: {attendee_name} ({attendee_email})"
+                if start_time:
+                    note += f"\nTime: {start_time}"
                 add_note(contact_id, note)
                 if trigger == "BOOKING_CANCELLED":
                     update_contact(contact_id, {"hs_lead_status": "OPEN"})

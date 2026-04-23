@@ -158,4 +158,11 @@ Recent News:
 ================= COMPETITORS =================
 
 {competitor_signals}
+
+================= SIGNAL QUALITY =================
+
+Per-source confidence (0.0=no data, 1.0=verified). Calibrate your output confidence
+and use ask-not-assert phrasing for signals below 0.5.
+
+{signal_confidence}
 """

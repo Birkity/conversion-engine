@@ -21,6 +21,45 @@ _CGB_FIELDS = {
 }
 
 
+def _derive_signal_confidence(signals: dict) -> dict:
+    """Estimate per-source confidence from a signals dict."""
+    # crunchbase: 1.0 if real funding data present, 0.3 otherwise
+    funding_info = signals.get("funding_info", "")
+    if funding_info and funding_info != "No funding data available":
+        crunchbase_conf = 1.0
+    else:
+        crunchbase_conf = 0.3
+
+    # job_velocity: 0.9 if jobs_now is a non-negative int, 0.0 if "data not available"
+    jobs_now = signals.get("jobs_now", "data not available")
+    if isinstance(jobs_now, int) and jobs_now >= 0:
+        job_velocity_conf = 0.9
+    else:
+        job_velocity_conf = 0.0
+
+    # layoffs: 1.0 if real event text, 0.5 if "No layoff events found", 0.0 if missing/empty
+    layoffs = signals.get("layoffs", "")
+    if not layoffs:
+        layoff_conf = 0.0
+    elif str(layoffs).strip().lower().startswith("no layoff events found"):
+        layoff_conf = 0.5
+    else:
+        layoff_conf = 1.0
+
+    # ai_maturity: 0.7 if ai_roles or tech_stack is non-empty, 0.3 otherwise
+    ai_roles = signals.get("ai_roles", [])
+    tech_stack = signals.get("tech_stack", [])
+    has_ai_signal = bool(ai_roles) or bool(tech_stack)
+    ai_maturity_conf = 0.7 if has_ai_signal else 0.3
+
+    return {
+        "crunchbase": crunchbase_conf,
+        "job_velocity": job_velocity_conf,
+        "layoffs": layoff_conf,
+        "ai_maturity": ai_maturity_conf,
+    }
+
+
 def _format_competitor_signals(competitor_signals: list | str | None) -> str:
     if not competitor_signals:
         return "No competitor data available."
@@ -85,6 +124,9 @@ def generate(signals: dict) -> dict:
 
     competitor_signals_str = _format_competitor_signals(signals.get("competitor_signals", []))
 
+    conf = _derive_signal_confidence(signals)
+    conf_str = " | ".join(f"{k}: {v:.2f}" for k, v in conf.items())
+
     user_msg = USER_TEMPLATE.format(
         company_name=company_name,
         industries=industries,
@@ -99,6 +141,7 @@ def generate(signals: dict) -> dict:
         leadership_changes=signals.get("leadership_changes", "None detected"),
         recent_news=signals.get("recent_news", "None detected"),
         competitor_signals=competitor_signals_str,
+        signal_confidence=conf_str,
     )
 
     raw = call_llm(
