@@ -4,9 +4,13 @@ Produces hiring_signal_brief and competitor_gap_brief from raw company signals.
 """
 import json
 import os
+import sys
+
+# Python 3.12+ restricts integer string conversion; LLMs sometimes output large numbers
+sys.set_int_max_str_digits(0)
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from langfuse.openai import OpenAI
 
 load_dotenv()
 
@@ -115,12 +119,18 @@ USER_TEMPLATE = """\
 ================= PROSPECT SIGNALS =================
 
 Company: {company_name}
+Industries: {industries}
+Headcount: {headcount}
+Description: {description}
 
 Funding:
 {funding_info}
 
 Layoffs:
 {layoff_info}
+
+Leadership Changes:
+{leadership_changes}
 
 Job Posts Now:
 {jobs_now}
@@ -134,12 +144,52 @@ Tech Stack Detected:
 AI/ML Related Roles Found:
 {ai_roles}
 
-================= COMPETITORS =================
+Recent News:
+{recent_news}
 
-For each competitor, signals are provided.
+================= COMPETITORS =================
 
 {competitor_signals}
 """
+
+
+_HSB_FIELDS = {
+    "hiring_velocity", "budget_urgency", "cost_pressure", "engineering_maturity",
+    "ai_maturity_score", "ai_maturity_rationale", "confidence", "icp_segment",
+    "recommended_pitch_angle",
+}
+_CGB_FIELDS = {
+    "sector", "competitors_analyzed", "prospect_ai_score",
+    "prospect_position_in_sector", "gaps", "overall_confidence",
+}
+
+
+def _normalize_response(parsed: dict, company_name: str) -> dict:
+    """
+    Models sometimes flatten the response instead of nesting under
+    hiring_signal_brief / competitor_gap_brief.  Repair both cases.
+    """
+    hsb = parsed.get("hiring_signal_brief", {})
+    cgb = parsed.get("competitor_gap_brief", {})
+
+    # Absorb root-level HSB fields that leaked out
+    for k in _HSB_FIELDS:
+        if k not in hsb and k in parsed:
+            hsb[k] = parsed[k]
+
+    # Absorb root-level CGB fields
+    for k in _CGB_FIELDS:
+        if k not in cgb and k in parsed:
+            cgb[k] = parsed[k]
+
+    if "company" not in hsb:
+        hsb["company"] = company_name
+
+    # Ensure both keys exist with at least a stub
+    if not cgb:
+        cgb = {"sector": "unknown", "competitors_analyzed": 0, "gaps": [], "overall_confidence": 0.0}
+
+    return {"hiring_signal_brief": hsb, "competitor_gap_brief": cgb}
 
 
 def generate_briefs(
@@ -151,21 +201,33 @@ def generate_briefs(
     tech_stack: list[str] | str,
     ai_roles: list[str] | str,
     competitor_signals: str,
+    industries: list[str] | str = "",
+    headcount: str = "",
+    description: str = "",
+    leadership_changes: str = "",
+    recent_news: str = "",
 ) -> dict:
     """Call the LLM and return parsed hiring_signal_brief + competitor_gap_brief."""
     if isinstance(tech_stack, list):
         tech_stack = ", ".join(tech_stack) if tech_stack else "None detected"
     if isinstance(ai_roles, list):
         ai_roles = ", ".join(ai_roles) if ai_roles else "None found"
+    if isinstance(industries, list):
+        industries = ", ".join(industries) if industries else "Unknown"
 
     user_msg = USER_TEMPLATE.format(
         company_name=company_name,
+        industries=industries or "Unknown",
+        headcount=headcount or "Unknown",
+        description=(description or "No description available")[:400],
         funding_info=funding_info or "No funding data available",
         layoff_info=layoff_info or "No layoff data found",
+        leadership_changes=leadership_changes or "No leadership change data",
         jobs_now=jobs_now,
         jobs_60_days=jobs_60_days,
         tech_stack=tech_stack,
         ai_roles=ai_roles,
+        recent_news=recent_news or "No recent news found",
         competitor_signals=competitor_signals or "No competitor data available",
     )
 
@@ -177,7 +239,9 @@ def generate_briefs(
         ],
         temperature=0.0,
         response_format={"type": "json_object"},
+        name="generate_briefs",
     )
 
     raw = response.choices[0].message.content
-    return json.loads(raw)
+    parsed = json.loads(raw)
+    return _normalize_response(parsed, company_name)

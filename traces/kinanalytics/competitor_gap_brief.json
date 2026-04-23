@@ -1,0 +1,16 @@
+{
+  "sector": "Data Analytics",
+  "competitors_analyzed": 3,
+  "prospect_ai_score": 1,
+  "prospect_position_in_sector": "below_median",
+  "gaps": [
+    {
+      "practice": "Active AI function with recent executive commitment",
+      "evidence_in_top_quartile": "Competitors have dedicated AI roles and modern ML stacks.",
+      "evidence_at_prospect": "Kin Analytics has only one open ML Engineer role and lacks a modern ML stack.",
+      "gap_insight": "Kin Analytics may benefit from strengthening its AI capabilities to align with industry leaders.",
+      "confidence": 0.7
+    }
+  ],
+  "overall_confidence": 0.7
+}

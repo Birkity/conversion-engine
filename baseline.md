@@ -1,48 +1,37 @@
-# τ²-Bench Retail Baseline — Dev Tier
+# Act I Baseline — τ²-Bench Retail Domain
 
-**Date:** 2026-04-22  
-**Model (agent):** `openrouter/qwen/qwen3-30b-a3b`  
-**Model (user):** `openrouter/meta-llama/llama-3.2-3b-instruct`  
-**Domain:** retail | **Dev slice:** 3 tasks (smoke) | **Trials:** 1
+## Setup
 
-## What Reproduced
+- **Benchmark**: τ²-Bench (retail domain, dev split, 1 trial per task)
+- **Agent harness**: `eval/tau2/src/tau2/agent/llm_agent.py` with 7-step mandatory workflow
+- **User simulator**: `openrouter/meta-llama/llama-3.2-3b-instruct`
+- **Tasks evaluated**: 30 (dev split, sequential, no parallelism)
+- **Run ID (day-1 baseline)**: `tau2-retail-20260423-113600`
 
-The τ²-Bench retail harness runs cleanly on Windows via `uv run` with `PYTHONIOENCODING=utf-8 NO_COLOR=1`. All 3 tasks loaded. 2/3 tasks evaluated to completion; 1 hit a recoverable infrastructure error (resolved — see below).
+## Results
 
-**Pass@1 = 0.000** (0/2 tasks passed). This is expected for a 30B-parameter MoE dev model against retail tasks whose SOTA is ~42% with GPT-5-class models.
+| Model | Tasks | pass@1 | 95% CI | Read acc. | Write acc. | DB match |
+|---|---|---|---|---|---|---|
+| Gemini 2.0 Flash (day-1) | 30 | 13.3% | [1.0%, 25.7%] | 56.3% | 16.3% | 13.3% |
+| GPT-4.1 Mini | 28 | 10.7% | [0.0%, 22.4%] | 51.6% | 7.9% | 14.3% |
+| Claude 3.5 Haiku (best) | 20 | **25.0%** | [5.5%, 44.5%] | 52.7% | 11.5% | 25.0% |
+| Blended (Haiku 0-19 + Gemini 20-29) | 30 | 20.0% | [4.8%, 35.2%] | 60.0% | 18.2% | 20.0% |
 
-## Per-Task Results
+**Published reference scores** (τ²-Bench paper, retail domain): Claude 3.7 Sonnet 78.7%, GPT-4.1 74.1%.
 
-| Task | Duration | Read accuracy | Write accuracy | Reward | Termination |
-|------|----------|---------------|----------------|--------|-------------|
-| 0 | 48s | 0/4 (0%) | 0/1 (0%) | 0.0 | USER_STOP |
-| 1 | 75s | 2/4 (50%) | 0/1 (0%) | 0.0 | USER_STOP |
-| 2 | 847s | 1/10 (10%) | 0/1 (0%) | 0.0 | USER_STOP |
+## Key Findings
 
-Task 1 shows the agent correctly calling `find_user_id_by_name_zip` and `get_order_details` (50% read accuracy) but failing to select the correct product IDs and never executing the write action (`exchange_delivered_order_items`). This is the canonical τ²-Bench failure mode: reasoning chain breaks before the write step.
+**Binding constraint — user simulator**: The `llama-3.2-3b` user simulator sends `###STOP###` when the agent issues a confirmation summary before executing a write tool call. This terminates the conversation before the write action fires, capping write accuracy across all models. The 7-step workflow instructs the agent to confirm before writing, which makes stronger instruction-following models more likely to trigger this stop condition.
+
+**Paradox**: GPT-4.1 Mini (published 66%) scores lower than Gemini 2.0 Flash (13.3%) in our rig because GPT-4.1 Mini follows the workflow more precisely, producing more confirmation messages and more `###STOP###` events. Gemini Flash accidentally avoids this by sometimes skipping confirmation steps.
+
+**Best result**: Claude 3.5 Haiku at 25.0% pass@1. Stronger instruction-following partially overcomes the simulator ceiling by completing reads more accurately before the stop condition fires.
 
 ## Cost and Latency
 
-- **Cost per run:** $0.00 reported (LiteLLM pricing table does not yet include `qwen/qwen3-30b-a3b-04-28` alias — actual tokens were consumed at OpenRouter rates).
-- **Wall-clock p50:** ~61s | **p95:** ~847s (task 2 ran multiple retries).
-- **Concurrency:** 1 (sequential).
+- Gemini 2.0 Flash (30 tasks): $0.30 total, p50=30.1s, p95=94.4s per conversation
+- Claude 3.5 Haiku (20 tasks): $0.39 total, p50=47.3s, p95=77.4s per conversation
 
-## Unexpected Behavior
+## Next Step
 
-1. **Empty assistant messages:** `qwen3-30b-a3b` occasionally returned responses with neither content nor tool_calls on task 2, triggering tau2's retry loop (3 retries → infra error). Root cause: new model alias routing. Fixed by also setting `OPENAI_BASE_URL=https://openrouter.ai/api/v1` and `OPENAI_API_KEY=<openrouter key>` in `eval/tau2/.env` so tau2's internal evaluation calls route through OpenRouter rather than failing against a placeholder key.
-
-2. **Model alias resolution:** OpenRouter resolved `qwen/qwen3-30b-a3b` → `qwen/qwen3-30b-a3b-04-28`. LiteLLM did not recognize this as a mapped model, so cost tracking returned $0. Token usage was real.
-
-## Plan for Act I Completion
-
-Full 30-task, 5-trial dev baseline requires eval-tier model (`claude-sonnet-4-6` or pinned staff model). Command:
-
-```bash
-cd eval/tau2
-PYTHONIOENCODING=utf-8 NO_COLOR=1 uv run tau2 run \
-  --domain retail \
-  --agent-llm "openrouter/qwen/qwen3-30b-a3b" \
-  --user-llm "openrouter/meta-llama/llama-3.2-3b-instruct" \
-  --num-tasks 30 --num-trials 5 \
-  --max-concurrency 3 --auto-resume
-```
+Modify agent workflow to suppress confirmation summaries (or reduce their length) before write calls, to avoid triggering the `###STOP###` termination condition. Estimated impact: +10–20 pp on write accuracy.
