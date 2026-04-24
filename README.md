@@ -101,6 +101,30 @@ cp .env.example .env
 
 ## Key Scripts
 
+### Act III — Reply interpretation (offline probe suite)
+
+```bash
+# Run all 32 adversarial probes against the reply interpreter
+python scripts/act3_reply_tests.py
+
+# Run against a specific company's context
+python scripts/act3_reply_tests.py --company kinanalytics
+
+# Save full results to probes/probe_results.json
+python scripts/act3_reply_tests.py --save-results
+```
+
+Loads `probes/probe_cases.json` (32 probes across 10 categories) and runs each through `interpret_reply()` with real brief context from `traces/{company}/` and the persisted `artifacts/{company}/last_email.json`. No emails sent, no CRM writes, no webhooks called.
+
+Current pass rate: **31/32 (97%)** — see `probe_library.md`, `failure_taxonomy.md`, `target_failure_mode.md`.
+
+Output includes:
+
+- Per-probe pass/fail with actual vs. expected intent and next_step
+- Per-category pass rate with bar chart
+- Schema validation (determinism check: intent always maps to correct next_step)
+- Full reasoning and grounding facts from the LLM for every failed probe
+
 ### Act I — Brief validation (intelligence layer)
 
 ```bash
@@ -238,6 +262,10 @@ Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
 ```text
 conversion-engine/
 ├── agent/
+│   ├── reply_interpreter/         ← Act III: reply classification + routing
+│   │   ├── reply_interpreter.py   ← interpret_reply() → intent/next_step/confidence
+│   │   ├── router.py              ← route_decision() → send email/cal/stop + bench guard
+│   │   └── prompts.py             ← System prompt with self-disclosure + tone rules
 │   ├── brief_generator/           ← Intelligence layer
 │   │   ├── bench.py               ← Dynamic bench loader (reads bench_summary.json at import)
 │   │   ├── brief_generator.py     ← generate(signals) → {hiring_brief, gap_brief, disqualifiers}
@@ -261,10 +289,14 @@ conversion-engine/
 ├── scripts/
 │   ├── act1_brief_validation.py   ← Validate briefs + signal quality display + disqualifier check
 │   ├── act2_email_execution.py    ← Generate + send outreach email (abstention path + latency)
+│   ├── act3_reply_tests.py        ← 32-probe adversarial suite (97% pass rate)
 │   ├── test_brief.py              ← Per-company brief generation
 │   ├── integration_smoketest.py   ← Full chain smoke test
 │   ├── update_score_log.py        ← τ²-Bench results → score_log.json
 │   └── *_smoketest.py             ← Per-service smoke tests
+├── probes/
+│   ├── probe_cases.json           ← 32 adversarial test cases (10 categories)
+│   └── probe_results.json         ← Latest run results (31/32 passed, 97%)
 ├── traces/
 │   ├── arcana/                    ← Segment 1 (clean): FinTech Series A, 42 hc, 6 open roles
 │   │   ├── signals.json
@@ -276,7 +308,10 @@ conversion-engine/
 │   └── wiseitech/                 ← Ambiguous: zero jobs, weak signal flagged
 ├── policy/
 │   └── acknowledgement_signed.txt ← Rule 5 compliance acknowledgement
-├── baseline.md                    ← τ²-Bench reference baseline (PM-provided)
+├── probe_library.md               ← All 32 probes documented by category + business impact
+├── failure_taxonomy.md            ← Per-category pass rates, trigger rates, fixes applied
+├── target_failure_mode.md         ← Primary failure (tone_drift) — root cause + resolution
+├── baseline.md                    ← τ²-Bench baseline, cost-per-lead, stalled-thread delta
 ├── score_log.json                 ← Official baseline: 72.7% pass@1
 ├── trace_log.jsonl                ← Simulation trace records
 ├── render.yaml                    ← Render deployment config
@@ -356,6 +391,8 @@ The following improvements were made to the brief generation pipeline and output
 | Signal quality display | `act1_brief_validation.py` prints per-source confidence bars before the LLM call and shows them again in the Confidence Summary alongside brief output confidence. |
 | Latency measurement | `act2_email_execution.py` measures and reports `Email gen latency` and `Total run latency` in the Summary section. |
 | 5-marker tone validation | `generator.py` now checks all five style-guide tone markers: DIRECT (subject prefix pattern), GROUNDED (aggressive-hiring gate), HONEST (`bench` jargon ban), PROFESSIONAL (extended phrase list), NON-CONDESCENDING (deficit framing detection). |
+| Act II booking-link removal | `generator.py` system prompt Line 5 changed to "soft open question that invites a reply — no booking link, no specific times, no '15 minutes'." `=== CAL.COM BOOKING LINK ===` section removed from user template. Hard post-generation validator added for `http`, `cal.com`, `schedule`, `book a`, `15 minutes`. |
+| Artifact persistence | `act2_email_execution.py` saves `artifacts/{company}/last_email.json` after each send + appends to `email_log.jsonl` (gitignored). Act III test harness loads real artifact for grounded probe context. |
 
 ---
 
@@ -446,6 +483,72 @@ properties = [
 ```
 
 After creating the properties, verify with `python scripts/hubspot_smoketest.py`.
+
+---
+
+## Reply Interpreter (Act III)
+
+The reply interpreter takes a prospect's reply and decides what happens next. It runs as a pure offline reasoning step — no email sent, no CRM written — until `route_decision()` is called with its output.
+
+### Intent classification
+
+`interpret_reply(reply_text, last_email, briefs, prospect_info)` returns:
+
+```json
+{
+  "intent": "INTERESTED | NOT_INTERESTED | QUESTION | SCHEDULE | UNKNOWN",
+  "confidence": 0.90,
+  "next_step": "SEND_CAL_LINK | SEND_EMAIL | ASK_CLARIFICATION | STOP",
+  "reasoning": "...",
+  "grounding_facts_used": ["Series A $14M closed March 2026", "..."]
+}
+```
+
+Intent → next_step mapping is deterministic (enforced at the router level):
+
+| Intent | Next Step | Action |
+| --- | --- | --- |
+| INTERESTED | SEND_CAL_LINK | Cal.com booking link emailed to prospect |
+| SCHEDULE | SEND_CAL_LINK | Cal.com booking link emailed to prospect |
+| QUESTION | SEND_EMAIL | Grounded clarification email, no booking ask |
+| NOT_INTERESTED | STOP | HubSpot status → UNQUALIFIED, no further contact |
+| UNKNOWN | ASK_CLARIFICATION | Soft follow-up: "more detail or a different time?" |
+
+### Key classifier rules
+
+**Self-disclosure buying signals → INTERESTED:**
+A prospect admitting a gap in the domain being pitched counts as an implicit "yes, relevant":
+- "our AI team is not great right now" → INTERESTED → SEND_CAL_LINK
+- "we're definitely behind our competitors on AI" → INTERESTED → SEND_CAL_LINK
+
+**Capacity requests → QUESTION (not INTERESTED):**
+"We need 8 NestJS engineers in 3 weeks" asks about our capacity — it is not a self-disclosure. Route to SEND_EMAIL with honest bench disclosure.
+
+**Signal challenges → QUESTION (not NOT_INTERESTED):**
+"Your data was wrong" or "our roles are for sales, not engineering" challenges a fact but does not opt out. Route to SEND_EMAIL; never STOP.
+
+**Authenticity challenges → QUESTION:**
+"Is this AI-generated?" or "are you a real person?" are questions requiring a direct honest answer, not a clarification ask.
+
+**Qualified dates → UNKNOWN:**
+"Maybe June 30th" is UNKNOWN → ASK_CLARIFICATION. "Thursday 9am works" is SCHEDULE → SEND_CAL_LINK.
+
+### Router bench guard
+
+Before sending a Cal.com booking link, `_action_send_cal_link()` checks `hsb.bench_match.bench_available`. If `false`, it downgrades to `SEND_EMAIL` with an honest disclosure:
+
+> "Our NestJS engineers are currently committed through Q3 2026. We do have Python, ML, and Data engineers available."
+
+This prevents booking a discovery call that would set expectations for capacity we cannot fulfil.
+
+### Probe suite results (2026-04-24)
+
+| Run | Pass Rate | Notes |
+| --- | --- | --- |
+| Run 1 (pre-fix) | 75% (24/32) | tone_drift 0/3, signal_over_claim 1/3, scheduling 1/3 |
+| Run 2 (post-fix) | **97% (31/32)** | One label mismatch remaining (probe #7, low business risk) |
+
+Run the suite: `python scripts/act3_reply_tests.py --save-results`
 
 ---
 
