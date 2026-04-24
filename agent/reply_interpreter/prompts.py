@@ -37,30 +37,68 @@ INTENT DEFINITIONS (strict)
 ============================
 
 INTERESTED:
-  Clear positive signal. The prospect wants to talk, asks for a meeting,
-  says "sounds good", "let's chat", "tell me more about working together",
-  or otherwise signals willingness to engage further.
+  Clear positive signal — explicit OR implicit. Classify as INTERESTED when:
+  a) Explicit: prospect says "sounds good", "let's chat", "I'm interested",
+     "tell me more about working together", "yes", "sure", or similar.
+  b) SELF-DISCLOSURE (implicit buying signal): prospect acknowledges a pain,
+     gap, or weakness that DIRECTLY matches the service described in our email.
+     Examples of self-disclosure → INTERESTED:
+       "our AI team is not great right now"          ← gap matches ML engineers
+       "we're definitely behind our competitors on AI" ← gap matches our pitch
+       "you're right, that bottleneck is real for us" ← confirms our framing
+       "honestly we struggle with exactly that"       ← admits the problem
+     RULE: if the prospect uses negative self-assessment language about the
+     SAME capability we are offering, treat it as an implicit "yes, relevant."
+     Classify INTERESTED → SEND_CAL_LINK.
+     Do NOT require an explicit "I want to meet" phrase.
+
+     IMPORTANT DISTINCTION — these are NOT INTERESTED, they are QUESTION:
+     - "We need 8 NestJS engineers" (stating a capacity need, not a weakness)
+     - "Can you provide ML engineers?" (direct availability question)
+     - "We need both NestJS and Python starting in Q3" (stack request with timeline)
+     A prospect stating what they NEED is asking about our capacity → QUESTION.
+     A prospect saying they are BAD at something or BEHIND is self-disclosure → INTERESTED.
 
 NOT_INTERESTED:
-  Explicit rejection or polite decline. Examples: "not interested",
-  "please stop", "we're all set", "not a fit", "remove me",
-  "stop emailing me", "unsubscribe", "no thanks".
+  Explicit rejection, opt-out, or clear dismissal. This requires the prospect
+  to express that they do not want our services or to be contacted.
+  Examples: "not interested", "please stop", "we're all set", "not a fit",
+  "remove me", "stop emailing me", "unsubscribe", "no thanks",
+  "we don't work with offshore vendors".
+  IMPORTANT: "your data was wrong" or "we only have 2 roles, not doubling"
+  is NOT a NOT_INTERESTED — the prospect is challenging a fact, not opting out.
+  A data accuracy challenge is QUESTION, not NOT_INTERESTED.
 
 QUESTION:
-  The prospect asks what we do, asks for clarification about our offering,
-  asks about pricing, capabilities, team size, or any specific detail.
-  They are NOT saying yes or no — they want more information.
+  The prospect asks for clarification, challenges a fact, or requests
+  more information. Includes:
+  - What we do, pricing, team size, capabilities, availability
+  - Challenges to our signal data ("where did you get that?",
+    "our open roles are sales not engineering — did you check?",
+    "that Series A was 8 months ago")
+  - Authenticity or identity questions ("is this AI-generated?",
+    "are you a real person?", "who is Tenacious?")
+  - Accusatory or defensive questions ("are you calling us unsophisticated?")
+  RULE: if the reply contains a question mark OR a challenge to a specific
+  claim in our email, classify as QUESTION → SEND_EMAIL.
+  Even hostile questions are QUESTION, not UNKNOWN.
 
 SCHEDULE:
-  Direct request for a calendar link, meeting times, or to book a call.
+  Confirmed, unambiguous request for a meeting or calendar link.
   Examples: "send calendar", "what times work", "book a call",
-  "send me your availability".
+  "Thursday 9am works", "sure let's do it".
+  RULE: if the prospect uses a qualifier like "maybe", "possibly",
+  or specifies a vague future window ("end of Q2", "sometime next month"),
+  that is UNKNOWN, not SCHEDULE. Only classify SCHEDULE when the intent
+  to book is clear and unqualified.
 
 UNKNOWN:
-  Ambiguous, hostile, off-topic, sarcastic, single-word non-committal,
-  or unclear intent. When in doubt, classify as UNKNOWN.
-  Examples: "maybe later", "hmm", "this feels generic", "k",
-  purely hostile/sarcastic responses with no actionable content.
+  Ambiguous, sarcastic with no question, single-word non-committal,
+  soft defer without a clear signal, or vague future preference.
+  Examples: "maybe later", "hmm", "k", "timing is off right now",
+  "maybe June 30th" (qualified date), "not never".
+  RULE: if the reply contains a clear "?" it is usually QUESTION not UNKNOWN.
+  RULE: "maybe + date" is UNKNOWN. "Thursday 9am works" is SCHEDULE.
 
 ============================
 NEXT STEP RULES (strict)

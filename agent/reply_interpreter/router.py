@@ -68,7 +68,7 @@ def route_decision(
 
     # ── 2. Execute the next_step action ──────────────────────────────
     if next_step == "SEND_CAL_LINK":
-        _action_send_cal_link(result, prospect_info, hsb)
+        _action_send_cal_link(result, prospect_info, hsb, briefs=briefs, reasoning=reasoning, grounding=grounding)
 
     elif next_step == "SEND_EMAIL":
         _action_send_clarification(result, prospect_info, briefs, reasoning, grounding)
@@ -138,8 +138,29 @@ def _hubspot_log(result: dict, prospect_info: dict, decision: dict) -> None:
 # Action: SEND_CAL_LINK
 # ─────────────────────────────────────────────────────────────────────
 
-def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict) -> None:
-    """Send a Cal.com booking link to the prospect."""
+def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict, briefs: dict | None = None, reasoning: str = "", grounding: list | None = None) -> None:
+    """Send a Cal.com booking link to the prospect.
+
+    If the bench is unavailable for this prospect's required stack, downgrade
+    to an honest SEND_EMAIL rather than booking a meeting we cannot staff.
+    """
+    bench_match = hsb.get("bench_match", {})
+    if not bench_match.get("bench_available", True):
+        log.info(
+            "reply_router: bench_available=false for %s — downgrading SEND_CAL_LINK to SEND_EMAIL",
+            prospect_info.get("company", ""),
+        )
+        result["actions"].append("bench_guard: bench unavailable — downgraded to SEND_EMAIL")
+        _action_send_clarification(
+            result,
+            prospect_info,
+            briefs or {"hiring_signal_brief": hsb},
+            reasoning,
+            grounding or [],
+            bench_constrained=True,
+        )
+        return
+
     try:
         from agent.calendar.client import booking_link
         from agent.email.handler import send
@@ -181,6 +202,7 @@ def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict) -> None:
 def _action_send_clarification(
     result: dict, prospect_info: dict, briefs: dict,
     reasoning: str, grounding: list,
+    bench_constrained: bool = False,
 ) -> None:
     """Send a clarification email grounded in the briefs."""
     try:
@@ -191,7 +213,6 @@ def _action_send_clarification(
         company = prospect_info.get("company", "")
         hsb = briefs.get("hiring_signal_brief", {})
         pitch = hsb.get("recommended_pitch_angle", "")
-        ai_score = hsb.get("ai_maturity_score", 0)
 
         subject = f"Re: More context on Tenacious - {company}"
         body = (
@@ -205,9 +226,19 @@ def _action_send_clarification(
         # Ground the response in actual brief facts
         if grounding and len(grounding) > 0:
             body += f"recently {grounding[0].lower()}. "
+
+        if bench_constrained:
+            body += (
+                f"\n\nI want to be upfront: our NestJS engineers are currently "
+                f"committed through Q3 2026, so I cannot promise NestJS capacity "
+                f"right now. We do have Python, ML, and Data engineers available. "
+                f"Would it be worth a conversation about what that coverage could "
+                f"solve for {company}?\n\n"
+            )
+        else:
+            body += f"{pitch}\n\nWhat would be most useful to dig into first?\n\n"
+
         body += (
-            f"{pitch}\n\n"
-            f"Happy to share more detail -- would a 15-minute call work?\n\n"
             f"Birkity\n"
             f"Research Partner, Tenacious Intelligence Corporation\n"
             f"gettenacious.com"
