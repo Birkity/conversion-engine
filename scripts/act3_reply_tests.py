@@ -58,6 +58,11 @@ _parser.add_argument(
     action="store_true",
     help="Write probe results to probes/probe_results.json for taxonomy analysis.",
 )
+_parser.add_argument(
+    "--output",
+    default=None,
+    help="Override the output file path for --save-results (relative to repo root).",
+)
 _args = _parser.parse_args()
 _COMPANY = _args.company
 
@@ -333,7 +338,7 @@ if __name__ == "__main__":
     results = run_probes()
 
     if _args.save_results:
-        out_path = REPO_ROOT / "probes" / "probe_results.json"
+        out_path = REPO_ROOT / (_args.output if _args.output else "probes/probe_results.json")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         print(f"\n  Results saved to {out_path}")
