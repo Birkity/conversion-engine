@@ -1,12 +1,11 @@
 """
-Act III — Reply Interpreter Test Suite.
+Act III — Reply Interpreter Probe Suite.
 
-Runs 14 realistic fake prospect replies through interpret_reply() and prints
-the returned JSON for each.  Uses real trace data from traces/<company>/ to
-build the hiring_signal_brief, competitor_gap_brief, and prospect_info context,
-and loads last_email from artifacts/<company>/last_email.json (written by act2).
+Loads probes from probes/probe_cases.json and runs each through
+interpret_reply() with real trace context from traces/<company>/ and the
+last email artifact from artifacts/<company>/last_email.json.
 
-This script is an OFFLINE REASONING TEST ONLY.  It must NOT:
+OFFLINE REASONING TEST ONLY — this script must NOT:
   - Send any emails
   - Call any webhooks
   - Update HubSpot
@@ -18,9 +17,9 @@ Prerequisites:
   - (Optional) Langfuse credentials for tracing
 
 Usage:
-    cd <repo-root>
     python scripts/act3_reply_tests.py
     python scripts/act3_reply_tests.py --company kinanalytics
+    python scripts/act3_reply_tests.py --save-results
 """
 
 import argparse
@@ -28,13 +27,12 @@ import json
 import os
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 
-# Force UTF-8 output on Windows to avoid cp1252 encoding errors
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# Ensure repo root is on the path so we can import agent.*
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -45,40 +43,43 @@ load_dotenv(REPO_ROOT / ".env")
 from agent.reply_interpreter import interpret_reply
 
 # ---------------------------------------------------------------------------
-# Parse company argument
+# Arguments
 # ---------------------------------------------------------------------------
 
-_parser = argparse.ArgumentParser(
-    description="Act III offline reply-interpreter test suite."
-)
+_parser = argparse.ArgumentParser(description="Act III offline probe suite.")
 _parser.add_argument(
     "--company",
     default="arcana",
     help="Company slug to load context from traces/<company>/ and artifacts/<company>/. "
          "Default: arcana",
 )
+_parser.add_argument(
+    "--save-results",
+    action="store_true",
+    help="Write probe results to probes/probe_results.json for taxonomy analysis.",
+)
 _args = _parser.parse_args()
 _COMPANY = _args.company
 
 # ---------------------------------------------------------------------------
-# Load real trace data for grounding context
+# Load context
 # ---------------------------------------------------------------------------
 
 TRACES_DIR = REPO_ROOT / "traces" / _COMPANY
 ARTIFACTS_DIR = REPO_ROOT / "artifacts" / _COMPANY
+PROBES_DIR = REPO_ROOT / "probes"
 
 
-def _load_json(filename: str, base_dir: Path = TRACES_DIR) -> dict:
-    path = base_dir / filename
+def _load_json(path: Path, label: str = "") -> dict | list:
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
-    print(f"  [WARN] {path} not found, using empty dict")
-    return {}
+    print(f"  [WARN] {label or path} not found, using empty dict")
+    return {} if path.suffix == ".json" and "probe" not in path.name else []
 
 
-HSB = _load_json("hiring_signal_brief.json")
-CGB = _load_json("competitor_gap_brief.json")
-PROSPECT = _load_json("prospect_info.json")
+HSB = _load_json(TRACES_DIR / "hiring_signal_brief.json", "hiring_signal_brief")
+CGB = _load_json(TRACES_DIR / "competitor_gap_brief.json", "competitor_gap_brief")
+PROSPECT = _load_json(TRACES_DIR / "prospect_info.json", "prospect_info")
 
 BRIEFS = {
     "hiring_signal_brief": HSB,
@@ -92,11 +93,7 @@ PROSPECT_INFO = {
     "email": PROSPECT.get("email", "jordan.osei@sink.example.com"),
 }
 
-# ---------------------------------------------------------------------------
-# Load last_email from artifacts (written by act2_email_execution.py)
-# Falls back to a representative sample if the artifact hasn't been generated yet.
-# ---------------------------------------------------------------------------
-
+# Load last_email from artifact (written by act2_email_execution.py)
 _last_email_path = ARTIFACTS_DIR / "last_email.json"
 if _last_email_path.exists():
     LAST_EMAIL = json.loads(_last_email_path.read_text(encoding="utf-8"))
@@ -121,113 +118,75 @@ else:
     }
 
 # ---------------------------------------------------------------------------
-# Test replies — 14 realistic scenarios covering all 5 intent classes
+# Load probes
 # ---------------------------------------------------------------------------
 
-TEST_REPLIES = [
-    # --- INTERESTED / SCHEDULE ---
-    {
-        "id": 1,
-        "reply": "Sounds interesting, can you send times?",
-        "expected_intent": "INTERESTED or SCHEDULE",
-    },
-    {
-        "id": 2,
-        "reply": "Sure, let's chat. Thursday works.",
-        "expected_intent": "INTERESTED",
-    },
-    {
-        "id": 3,
-        "reply": "Send calendar",
-        "expected_intent": "SCHEDULE",
-    },
-    {
-        "id": 4,
-        "reply": "Call me at 3pm — I have 15 minutes.",
-        "expected_intent": "INTERESTED",
-    },
-    # --- NOT_INTERESTED ---
-    {
-        "id": 5,
-        "reply": "Not interested.",
-        "expected_intent": "NOT_INTERESTED",
-    },
-    {
-        "id": 6,
-        "reply": "Stop emailing me.",
-        "expected_intent": "NOT_INTERESTED",
-    },
-    {
-        "id": 7,
-        "reply": "We already have a data team, thanks.",
-        "expected_intent": "NOT_INTERESTED",
-    },
-    # --- QUESTION ---
-    {
-        "id": 8,
-        "reply": "What exactly do you guys do?",
-        "expected_intent": "QUESTION",
-    },
-    {
-        "id": 9,
-        "reply": "Who are you? I don't recognize this address.",
-        "expected_intent": "QUESTION",
-    },
-    {
-        "id": 10,
-        "reply": "Can you explain more about the ML engineers? What's their experience with PyTorch and inference pipelines?",
-        "expected_intent": "QUESTION",
-    },
-    # --- UNKNOWN ---
-    {
-        "id": 11,
-        "reply": "Maybe later this quarter.",
-        "expected_intent": "UNKNOWN",
-    },
-    {
-        "id": 12,
-        "reply": "This feels generic. Do you actually know what we do?",
-        "expected_intent": "UNKNOWN or QUESTION",
-    },
-    {
-        "id": 13,
-        "reply": "lol another offshore body shop. hard pass buddy",
-        "expected_intent": "NOT_INTERESTED or UNKNOWN",
-    },
-    {
-        "id": 14,
-        "reply": "k",
-        "expected_intent": "UNKNOWN",
-    },
-]
+_probes_path = PROBES_DIR / "probe_cases.json"
+if not _probes_path.exists():
+    print(f"ERROR: {_probes_path} not found. Cannot run probes.", file=sys.stderr)
+    sys.exit(1)
+
+TEST_CASES = json.loads(_probes_path.read_text(encoding="utf-8"))
+print(f"  [OK]  Loaded {len(TEST_CASES)} probes from {_probes_path}")
 
 # ---------------------------------------------------------------------------
-# Run all tests
+# Validation helpers
 # ---------------------------------------------------------------------------
 
-SEPARATOR = "=" * 80
+VALID_INTENTS = {"INTERESTED", "NOT_INTERESTED", "QUESTION", "SCHEDULE", "UNKNOWN"}
+VALID_NEXT_STEPS = {"SEND_EMAIL", "SEND_CAL_LINK", "ASK_CLARIFICATION", "STOP"}
+
+INTENT_TO_NEXT_STEP = {
+    "INTERESTED": "SEND_CAL_LINK",
+    "SCHEDULE": "SEND_CAL_LINK",
+    "QUESTION": "SEND_EMAIL",
+    "NOT_INTERESTED": "STOP",
+    "UNKNOWN": "ASK_CLARIFICATION",
+}
 
 
-def run_tests():
+def _intent_matches(actual: str, expected_str: str) -> bool:
+    """Support 'A or B' syntax in expected_intent field."""
+    parts = [p.strip().upper() for p in expected_str.replace(" or ", "|").split("|")]
+    return actual.upper() in parts
+
+
+def _step_matches(actual: str, expected_str: str) -> bool:
+    parts = [p.strip().upper() for p in expected_str.replace(" or ", "|").split("|")]
+    return actual.upper() in parts
+
+
+# ---------------------------------------------------------------------------
+# Run probes
+# ---------------------------------------------------------------------------
+
+SEPARATOR = "=" * 90
+
+
+def run_probes() -> list[dict]:
+    print()
     print(SEPARATOR)
-    print("ACT III — REPLY INTERPRETER TEST SUITE")
-    print(f"Model: {os.getenv('REPLY_INTERPRETER_MODEL', os.getenv('BRIEF_GENERATOR_MODEL', 'google/gemini-2.0-flash-001'))}")
-    print(f"Temperature: {os.getenv('REPLY_INTERPRETER_TEMPERATURE', '0.2')}")
-    print(f"Prospect: {PROSPECT_INFO['name']} ({PROSPECT_INFO['role']}, {PROSPECT_INFO['company']})")
+    print("ACT III — REPLY INTERPRETER PROBE SUITE")
+    print(f"Model     : {os.getenv('REPLY_INTERPRETER_MODEL', os.getenv('BRIEF_GENERATOR_MODEL', 'google/gemini-2.0-flash-001'))}")
+    print(f"Probes    : {len(TEST_CASES)}")
+    print(f"Company   : {PROSPECT_INFO['name']} ({PROSPECT_INFO['role']}, {PROSPECT_INFO['company']})")
+    print(f"Last email: {LAST_EMAIL.get('subject', '(no subject)')}")
     print(SEPARATOR)
     print()
 
     results = []
     total_start = time.time()
 
-    for test in TEST_REPLIES:
-        test_id = test["id"]
-        reply_text = test["reply"]
-        expected = test["expected_intent"]
+    for probe in TEST_CASES:
+        pid = probe["id"]
+        category = probe["category"]
+        reply_text = probe["reply"]
+        exp_intent = probe["expected_intent"]
+        exp_step = probe["expected_next_step"]
 
-        print(f"--- Test #{test_id} ---")
-        print(f"  Reply:    \"{reply_text}\"")
-        print(f"  Expected: {expected}")
+        print(f"--- Probe #{pid:02d} [{category}] ---")
+        print(f"  Reply    : \"{reply_text}\"")
+        print(f"  Expected : intent={exp_intent}  next_step={exp_step}")
 
         start = time.time()
         try:
@@ -238,100 +197,144 @@ def run_tests():
                 prospect_info=PROSPECT_INFO,
             )
         except Exception as exc:
-            result = {"error": str(exc)}
-        elapsed = time.time() - start
+            result = {
+                "intent": "ERROR",
+                "confidence": 0.0,
+                "next_step": "ERROR",
+                "reasoning": str(exc),
+                "grounding_facts_used": [],
+            }
+        elapsed = round(time.time() - start, 2)
 
-        result["_test_id"] = test_id
-        result["_reply"] = reply_text
-        result["_expected"] = expected
-        result["_elapsed_s"] = round(elapsed, 2)
-        results.append(result)
+        actual_intent = result.get("intent", "ERROR")
+        actual_step = result.get("next_step", "ERROR")
+        intent_ok = _intent_matches(actual_intent, exp_intent)
+        step_ok = _step_matches(actual_step, exp_step)
+        passed = intent_ok and step_ok
 
-        print(f"  Result:   {json.dumps(result, indent=2, default=str)}")
-        print(f"  Time:     {elapsed:.2f}s")
+        status = "PASS" if passed else "FAIL"
+        flag = "[OK]  " if passed else "[FAIL]"
+        print(f"  Got      : intent={actual_intent}  next_step={actual_step}  conf={result.get('confidence', 0):.2f}")
+        print(f"  {flag} {status}  ({elapsed}s)")
+        if not passed:
+            print(f"  Mismatch : intent_ok={intent_ok} step_ok={step_ok}")
+            print(f"  Reasoning: {result.get('reasoning', '')[:120]}")
         print()
 
-    # -- Summary table --
+        results.append({
+            "id": pid,
+            "category": category,
+            "reply": reply_text,
+            "expected_intent": exp_intent,
+            "expected_next_step": exp_step,
+            "actual_intent": actual_intent,
+            "actual_next_step": actual_step,
+            "confidence": result.get("confidence", 0),
+            "reasoning": result.get("reasoning", ""),
+            "grounding_facts_used": result.get("grounding_facts_used", []),
+            "passed": passed,
+            "intent_ok": intent_ok,
+            "step_ok": step_ok,
+            "elapsed_s": elapsed,
+            "risk_explained": probe.get("risk_explained", ""),
+        })
+
     total_elapsed = time.time() - total_start
-    print(SEPARATOR)
-    print("SUMMARY")
-    print(SEPARATOR)
-    print(f"{'#':<4} {'Reply (truncated)':<45} {'Intent':<18} {'Conf':>5} {'Next Step':<20} {'Time':>6}")
-    print("-" * 100)
 
-    intent_counts = {}
-    confidences = []
+    # ── Summary table ──────────────────────────────────────────────────────
+    print(SEPARATOR)
+    print("SUMMARY TABLE")
+    print(SEPARATOR)
+    print(f"{'#':>3} {'Category':<28} {'Reply (40ch)':<42} {'Intent':<16} {'Step':<20} {'OK':>2}")
+    print("-" * 115)
+
+    category_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "pass": 0, "failures": []})
 
     for r in results:
-        tid = r.get("_test_id", "?")
-        reply_short = r.get("_reply", "")[:42]
-        intent = r.get("intent", "ERROR")
-        conf = r.get("confidence", 0)
-        step = r.get("next_step", "ERROR")
-        elapsed = r.get("_elapsed_s", 0)
-
-        print(f"{tid:<4} {reply_short:<45} {intent:<18} {conf:>5.2f} {step:<20} {elapsed:>5.1f}s")
-
-        intent_counts[intent] = intent_counts.get(intent, 0) + 1
-        if isinstance(conf, (int, float)):
-            confidences.append(conf)
-
-    print("-" * 100)
-    print(f"\nTotal time: {total_elapsed:.1f}s | Avg per reply: {total_elapsed / len(results):.1f}s")
-    print(f"\nIntent distribution: {json.dumps(intent_counts, indent=2)}")
-
-    if confidences:
-        avg_conf = sum(confidences) / len(confidences)
-        min_conf = min(confidences)
-        max_conf = max(confidences)
-        print(f"Confidence — avg: {avg_conf:.3f}, min: {min_conf:.3f}, max: {max_conf:.3f}")
-
-    # ── Validation checks ──
-    print("\n" + "VALIDATION CHECKS".ljust(80, "="))
-    all_pass = True
-
-    for r in results:
-        tid = r.get("_test_id", "?")
-        intent = r.get("intent", "")
-        step = r.get("next_step", "")
-        facts = r.get("grounding_facts_used", [])
-        reasoning = r.get("reasoning", "")
-
-        issues = []
-        if intent not in {"INTERESTED", "NOT_INTERESTED", "QUESTION", "SCHEDULE", "UNKNOWN"}:
-            issues.append(f"invalid intent: {intent}")
-        if step not in {"SEND_EMAIL", "SEND_CAL_LINK", "ASK_CLARIFICATION", "STOP"}:
-            issues.append(f"invalid next_step: {step}")
-        if not facts or (len(facts) == 1 and "no" in facts[0].lower() and "error" in facts[0].lower()):
-            issues.append("empty or error grounding_facts")
-        if not reasoning:
-            issues.append("empty reasoning")
-
-        # Check intent→step consistency
-        expected_step = {
-            "INTERESTED": "SEND_CAL_LINK",
-            "SCHEDULE": "SEND_CAL_LINK",
-            "QUESTION": "SEND_EMAIL",
-            "NOT_INTERESTED": "STOP",
-            "UNKNOWN": "ASK_CLARIFICATION",
-        }.get(intent, "")
-        if expected_step and step != expected_step:
-            issues.append(f"step mismatch: {intent}->{step} (expected {expected_step})")
-
-        if issues:
-            print(f"  [FAIL] Test #{tid}: {', '.join(issues)}")
-            all_pass = False
+        tid = r["id"]
+        cat = r["category"][:26]
+        reply_short = r["reply"][:40]
+        intent = r["actual_intent"]
+        step = r["actual_next_step"]
+        ok = "✓" if r["passed"] else "✗"
+        print(f"{tid:>3} {cat:<28} {reply_short:<42} {intent:<16} {step:<20} {ok:>2}")
+        category_stats[r["category"]]["total"] += 1
+        if r["passed"]:
+            category_stats[r["category"]]["pass"] += 1
         else:
-            print(f"  [OK]   Test #{tid}: PASS")
+            category_stats[r["category"]]["failures"].append(r)
+
+    total = len(results)
+    passed_count = sum(1 for r in results if r["passed"])
+    failed_count = total - passed_count
+
+    print("-" * 115)
+    print(f"\nTotal: {total}  Passed: {passed_count}  Failed: {failed_count}  "
+          f"Pass rate: {passed_count/total*100:.0f}%  Time: {total_elapsed:.1f}s")
+
+    # ── Per-category breakdown ─────────────────────────────────────────────
+    print()
+    print(SEPARATOR)
+    print("PER-CATEGORY PASS RATES")
+    print(SEPARATOR)
+    print(f"{'Category':<35} {'Pass/Total':>12} {'Rate':>8}")
+    print("-" * 60)
+    for cat, stats in sorted(category_stats.items()):
+        p = stats["pass"]
+        t = stats["total"]
+        rate = p / t * 100
+        bar = "█" * int(rate / 10) + "░" * (10 - int(rate / 10))
+        print(f"  {cat:<33} {p}/{t:>5}      {rate:>5.0f}%  [{bar}]")
+    print()
+
+    # ── Schema validation ──────────────────────────────────────────────────
+    print(SEPARATOR)
+    print("SCHEMA VALIDATION")
+    print(SEPARATOR)
+    schema_pass = True
+    for r in results:
+        issues = []
+        if r["actual_intent"] not in VALID_INTENTS and r["actual_intent"] != "ERROR":
+            issues.append(f"invalid intent: {r['actual_intent']}")
+        if r["actual_next_step"] not in VALID_NEXT_STEPS and r["actual_next_step"] != "ERROR":
+            issues.append(f"invalid next_step: {r['actual_next_step']}")
+        inferred_step = INTENT_TO_NEXT_STEP.get(r["actual_intent"], "")
+        if inferred_step and r["actual_next_step"] != inferred_step and r["actual_next_step"] != "ERROR":
+            issues.append(f"determinism broken: {r['actual_intent']}→{r['actual_next_step']} (expected {inferred_step})")
+        if issues:
+            print(f"  [FAIL] Probe #{r['id']}: {'; '.join(issues)}")
+            schema_pass = False
+        else:
+            print(f"  [OK]   Probe #{r['id']}: schema valid")
 
     print()
-    if all_pass:
-        print("ALL TESTS PASSED -- schema valid, next_step consistent, grounding present.")
+    if passed_count == total and schema_pass:
+        print("ALL PROBES PASSED.")
     else:
-        print("SOME TESTS HAD ISSUES -- see above for details.")
+        print(f"RESULT: {passed_count}/{total} probes matched expected behavior.")
+        print()
+        print("Failures by category:")
+        for cat, stats in sorted(category_stats.items(), key=lambda x: x[1]["pass"] / x[1]["total"]):
+            if stats["failures"]:
+                print(f"  {cat}:")
+                for f in stats["failures"]:
+                    print(f"    #{f['id']}: expected {f['expected_intent']}→{f['expected_next_step']}, "
+                          f"got {f['actual_intent']}→{f['actual_next_step']}")
+                    print(f"           Risk: {f['risk_explained'][:80]}")
 
     return results
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    run_tests()
+    results = run_probes()
+
+    if _args.save_results:
+        out_path = REPO_ROOT / "probes" / "probe_results.json"
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"\n  Results saved to {out_path}")
+        print("  Use this file to build failure_taxonomy.md and target_failure_mode.md.")
