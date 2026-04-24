@@ -8,6 +8,7 @@ Usage:
     # result contains: crunchbase_record, hiring_signal_brief, competitor_gap_brief
 """
 import json
+import statistics
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -17,9 +18,68 @@ from agent.enrichment.signal_brief import generate_briefs
 
 load_dotenv()
 
+# ── ICP disqualifier constants ─────────────────────────────────────────────────
+_CONSUMER_INDUSTRY_KEYWORDS = {
+    "gaming", "consumer", "social media", "dating", "entertainment",
+    "fitness", "food delivery", "e-commerce", "retail consumer",
+}
+_ANTI_OFFSHORE_KEYWORDS = {
+    "we don't work with offshore", "no offshore", "domestic only",
+    "in-house only", "no contractors",
+}
+
+
+def _check_disqualifiers(
+    industries: list[str],
+    headcount_str: str,
+    description: str,
+) -> list[str]:
+    """Return a list of disqualifier reasons; empty list means no disqualifiers."""
+    disq: list[str] = []
+
+    # Headcount gate (>5000 employees)
+    try:
+        hc = int(str(headcount_str).replace(",", "").split()[0])
+        if hc > 5000:
+            disq.append(f"headcount_exceeds_5000: {hc}")
+    except (ValueError, IndexError, AttributeError):
+        pass
+
+    # Consumer app industries
+    industry_text = " ".join(i.lower() for i in industries)
+    if any(kw in industry_text for kw in _CONSUMER_INDUSTRY_KEYWORDS):
+        disq.append("consumer_app_industry")
+
+    # Anti-offshore stance in company description
+    desc_lower = description.lower()
+    if any(kw in desc_lower for kw in _ANTI_OFFSHORE_KEYWORDS):
+        disq.append("anti_offshore_stance_in_description")
+
+    return disq
+
+
+def _compute_sector_ai_distribution(sector_companies: list[dict]) -> str:
+    """Compute AI maturity score distribution across sector peers."""
+    scores: list[int] = []
+    for comp in sector_companies[:10]:
+        stack = crunchbase.extract_tech_stack(comp)
+        ai_score, _ = maturity.score(stack, [])
+        scores.append(ai_score)
+    if not scores:
+        return "insufficient_data"
+    scores_sorted = sorted(scores)
+    median_score = statistics.median(scores_sorted)
+    p75_idx = max(0, int(len(scores_sorted) * 0.75) - 1)
+    p75 = scores_sorted[p75_idx]
+    return (
+        f"Sector AI maturity distribution (n={len(scores)}): "
+        f"median={median_score:.1f}/3, top-quartile threshold≥{p75}/3, "
+        f"all scores={scores_sorted}"
+    )
+
 
 def _build_competitor_signals(sector_companies: list[dict]) -> str:
-    """Format competitor records into the template string."""
+    """Format competitor records into the template string, appending sector distribution."""
     if not sector_companies:
         return "No competitor data available."
     lines = []
@@ -37,6 +97,8 @@ def _build_competitor_signals(sector_companies: list[dict]) -> str:
             f"  Tech stack: {', '.join(stack[:8]) or 'unknown'}\n"
             f"  AI maturity (pre-score): {ai_score}/3\n"
         )
+    distribution = _compute_sector_ai_distribution(sector_companies)
+    lines.append(f"\n{distribution}")
     return "\n".join(lines)
 
 
@@ -92,8 +154,17 @@ def enrich(company_name: str) -> dict:
     jobs_60d = job_data["jobs_60_days"] if job_data["data_available"] else "data not available"
     ai_roles = job_data["ai_roles"]
 
-    # 4. Rule-based AI maturity pre-score (now includes industries signal)
-    pre_score, pre_rationale = maturity.score(tech_stack, ai_roles, industries=industries)
+    # 3b. ICP disqualifier pre-screen
+    disqualifiers = _check_disqualifiers(industries, headcount, description)
+
+    # 4. Rule-based AI maturity pre-score — extract exec keywords from free-text fields
+    _exec_text = f"{description} {recent_news} {leadership_changes}".lower()
+    exec_keywords = [kw for kw in maturity._EXEC_AI_KEYWORDS if kw in _exec_text]
+    pre_score, pre_rationale = maturity.score(
+        tech_stack, ai_roles,
+        exec_commentary_keywords=exec_keywords,
+        industries=industries,
+    )
 
     # 5. Competitor signals
     peers = _find_sector_peers(record) if cb_found else []
@@ -120,6 +191,37 @@ def enrich(company_name: str) -> dict:
         "ai_maturity": maturity_confidence,
     }
 
+    base_return = {
+        "company": company_name,
+        "enrichment_ts": started_at,
+        "crunchbase_found": cb_found,
+        "crunchbase_id": record.get("id", None),
+        "industries": industries,
+        "pre_score_ai_maturity": pre_score,
+        "pre_score_rationale": pre_rationale,
+        "signal_confidence": signal_confidence_dict,
+        "disqualifiers": disqualifiers,
+    }
+
+    # Short-circuit LLM call if disqualified — return stub briefs
+    if disqualifiers:
+        stub_hsb = {
+            "company": company_name,
+            "icp_segment": "disqualified",
+            "confidence": 0.0,
+            "recommended_pitch_angle": "",
+            "tenacious_status": "draft",
+            "disqualified_reasons": disqualifiers,
+        }
+        stub_cgb = {
+            "sector": "unknown",
+            "competitors_analyzed": 0,
+            "gaps": [],
+            "overall_confidence": 0.0,
+            "tenacious_status": "draft",
+        }
+        return {**base_return, "hiring_signal_brief": stub_hsb, "competitor_gap_brief": stub_cgb}
+
     # 7. LLM signal brief generation
     briefs = generate_briefs(
         company_name=company_name,
@@ -138,17 +240,7 @@ def enrich(company_name: str) -> dict:
         signal_confidence=signal_confidence_dict,
     )
 
-    return {
-        "company": company_name,
-        "enrichment_ts": started_at,
-        "crunchbase_found": cb_found,
-        "crunchbase_id": record.get("id", None),
-        "industries": industries,
-        "pre_score_ai_maturity": pre_score,
-        "pre_score_rationale": pre_rationale,
-        "signal_confidence": signal_confidence_dict,
-        **briefs,
-    }
+    return {**base_return, **briefs}
 
 
 if __name__ == "__main__":

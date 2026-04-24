@@ -106,27 +106,36 @@ cp .env.example .env
 ```bash
 # Validate that raw signals produce structured briefs
 python scripts/act1_brief_validation.py
+python scripts/act1_brief_validation.py traces/arcana/signals.json
 python scripts/act1_brief_validation.py traces/snaptrade/signals.json
 python scripts/act1_brief_validation.py traces/wiseitech/signals.json --outdir out/wiseitech
 ```
 
-Reads `signals.json` → calls `brief_generator.generate()` → saves and prints both briefs with confidence scores. Validates all required output fields. No outbound triggered.
+Reads `signals.json` → runs ICP disqualifier pre-screen → displays per-source signal quality bars → calls `brief_generator.generate()` → saves and prints both briefs with confidence scores. Validates all required output fields. No outbound triggered.
+
+Output includes:
+
+- Per-source signal confidence bars (crunchbase / job_velocity / layoffs / ai_maturity)
+- ICP disqualifier warnings if headcount >5000, consumer app, or anti-offshore stance detected
+- `bench_match` — which stacks are required vs. available on the Tenacious bench
+- `honesty_flags` — explicit flags when hiring signal is weak or a bench gap exists
 
 ### Act II — Email execution (outbound layer)
 
 ```bash
 # Generate + send to sink (kill switch active — never reaches real prospect)
-python scripts/act2_email_execution.py traces/kinanalytics
+python scripts/act2_email_execution.py traces/arcana
 
 # Dry run — generate only, do not send
-python scripts/act2_email_execution.py traces/kinanalytics --dry-run
+python scripts/act2_email_execution.py traces/arcana --dry-run
 
 # Other companies
+python scripts/act2_email_execution.py traces/kinanalytics --dry-run
 python scripts/act2_email_execution.py traces/snaptrade
 python scripts/act2_email_execution.py traces/wiseitech
 ```
 
-Loads `hiring_signal_brief.json` + `competitor_gap_brief.json` + `prospect_info.json` → generates a style-guide-compliant cold email via LLM → sends to `OUTBOUND_SINK_EMAIL` (never the prospect). Validates word count, subject length, and banned phrases before sending.
+Loads `hiring_signal_brief.json` + `competitor_gap_brief.json` + `prospect_info.json` → applies abstention path (confidence < 0.6 forces `icp_segment=Ambiguous`) → generates a style-guide-compliant cold email via LLM → sends to `OUTBOUND_SINK_EMAIL` (never the prospect). Validates all five tone markers before sending. Reports `Email gen latency` and `Total run latency` in the summary.
 
 ### Brief generation
 
@@ -143,9 +152,12 @@ python scripts/test_brief.py wiseitech
 python -m agent.enrichment.pipeline "Stripe"
 ```
 
-Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief. Returns `signal_confidence` dict with per-source confidence scores (crunchbase, job_velocity, layoffs, ai_maturity).
+Chains: Crunchbase → Jobs (Playwright first, CSV fallback) → Layoffs.fyi → AI maturity score → LLM brief. Returns `signal_confidence` dict with per-source confidence scores (crunchbase, job_velocity, layoffs, ai_maturity) and `disqualifiers` list.
 
-Signal confidence is now propagated into both brief paths:
+Disqualifier pre-screen runs before any LLM call. If a company fires a disqualifier (headcount >5000, consumer app industry, anti-offshore stance in description), the pipeline returns stub briefs with `icp_segment="disqualified"` and skips the LLM call entirely.
+
+Signal confidence propagates into both brief paths:
+
 - `agent/enrichment/pipeline.py` passes the computed per-source confidence map into `generate_briefs()`.
 - `agent/brief_generator/brief_generator.py` derives per-source confidence from `signals.json` for the Act I path and injects it into the LLM prompt.
 
@@ -206,7 +218,7 @@ Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
 {
   "name": "Alex Rivera",
   "role": "CTO",
-  "email": "prospect@sink.trp1.internal",
+  "email": "prospect@sink.example.com",
   "phone": "+15559999001",
   "company": "Acme Corp",
   "_policy_note": "Synthetic prospect. Rule 2: email resolves to program sink."
@@ -214,6 +226,10 @@ Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
 ```
 
 > **Rule 2:** `email` and `phone` must be synthetic/sink contact details — never real contact info.
+>
+> **Email domain:** Use `@sink.example.com` (RFC 2606 reserved — non-routable, but accepted by HubSpot's email validator). The `.internal` TLD is rejected by HubSpot even though it is also non-routable.
+>
+> **HubSpot custom properties:** The sandbox requires these five custom contact properties to be created before the first upsert: `enrichment_timestamp`, `tenacious_status`, `ai_maturity_score`, `icp_segment`, `enrichment_confidence`. Run `python scripts/hubspot_smoketest.py` after sandbox setup to verify.
 
 ---
 
@@ -223,37 +239,39 @@ Each company also needs a `prospect_info.json` for `act2_email_execution.py`:
 conversion-engine/
 ├── agent/
 │   ├── brief_generator/           ← Intelligence layer
-│   │   ├── brief_generator.py     ← generate(signals) → {hiring_brief, gap_brief}
+│   │   ├── bench.py               ← Dynamic bench loader (reads bench_summary.json at import)
+│   │   ├── brief_generator.py     ← generate(signals) → {hiring_brief, gap_brief, disqualifiers}
 │   │   ├── llm_client.py          ← OpenRouter + Langfuse auto-tracing
-│   │   └── prompts.py             ← SYSTEM_PROMPT (ICP, bench, tone constraints)
+│   │   └── prompts.py             ← SYSTEM_PROMPT (dynamic bench + ICP + tone constraints)
 │   ├── enrichment/                ← Signal collection
-│   │   ├── pipeline.py            ← Orchestrator: all signals → briefs
+│   │   ├── pipeline.py            ← Orchestrator: disqualifier check → signals → briefs
 │   │   ├── crunchbase.py          ← Crunchbase ODM loader
 │   │   ├── jobs.py                ← Job velocity (Playwright first, CSV fallback)
 │   │   ├── jobs_playwright.py     ← Public LinkedIn job scraper (no login)
 │   │   ├── layoffs.py             ← layoffs.fyi CSV lookup
 │   │   ├── maturity.py            ← Rule-based AI maturity scorer (0–3)
-│   │   └── signal_brief.py        ← LLM brief call (Langfuse traced)
+│   │   └── signal_brief.py        ← LLM brief call (Langfuse traced, synced schema)
 │   ├── email/
 │   │   ├── handler.py             ← Resend SMTP + kill switch + draft header
-│   │   └── generator.py           ← LLM email composer (style-guide enforced)
+│   │   └── generator.py           ← LLM email composer (all 5 tone markers validated)
 │   ├── sms/handler.py             ← Africa's Talking + warm-lead gate + inbound CRM routing
 │   ├── hubspot/client.py          ← Contact upsert, enrichment note, search, add_note, update_contact
 │   └── calendar/client.py         ← Cal.com booking link generator
 ├── webhook/main.py                ← FastAPI hub: 5 endpoints, HMAC verified
 ├── scripts/
-│   ├── act1_brief_validation.py   ← Validate brief generation end-to-end
-│   ├── act2_email_execution.py    ← Generate + send outreach email (sink)
+│   ├── act1_brief_validation.py   ← Validate briefs + signal quality display + disqualifier check
+│   ├── act2_email_execution.py    ← Generate + send outreach email (abstention path + latency)
 │   ├── test_brief.py              ← Per-company brief generation
 │   ├── integration_smoketest.py   ← Full chain smoke test
 │   ├── update_score_log.py        ← τ²-Bench results → score_log.json
 │   └── *_smoketest.py             ← Per-service smoke tests
 ├── traces/
-│   ├── kinanalytics/              ← Segment 1: Series A, 35 hc, 7 open roles
+│   ├── arcana/                    ← Segment 1 (clean): FinTech Series A, 42 hc, 6 open roles
 │   │   ├── signals.json
 │   │   ├── hiring_signal_brief.json
 │   │   ├── competitor_gap_brief.json
 │   │   └── prospect_info.json     ← Synthetic prospect (Rule 2)
+│   ├── kinanalytics/              ← Segment 1: Series A, 35 hc, 7 open roles
 │   ├── snaptrade/                 ← Ambiguous: decelerating hiring, no funding
 │   └── wiseitech/                 ← Ambiguous: zero jobs, weak signal flagged
 ├── policy/
@@ -317,9 +335,117 @@ uv run --project eval/tau2 tau2 run `
 | 5 | Kill switch active by default | `OUTBOUND_ENABLED=False` when env vars unset |
 | 6 | Tenacious output marked draft | `tenacious_status="draft"` + `X-Tenacious-Status: draft` header |
 | 7 | Minimal PII in traces | First name + email only; no home address, payment info |
-| 8 | No internal Tenacious data in public repo | Bench capacity as stack names only, no headcount |
+| 8 | No internal Tenacious data in public repo | Bench capacity loaded at runtime from gitignored `seeds/` — only stack names in committed code |
 
 Full policy: `seeds/tenacious_sales_data/tenacious_sales_data/policy/data_handling_policy.md` (gitignored)
+
+---
+
+## Signal Quality Improvements (April 24, 2026)
+
+The following improvements were made to the brief generation pipeline and output validation:
+
+| Improvement | What changed |
+| --- | --- |
+| Dynamic bench loading | `agent/brief_generator/bench.py` reads `bench_summary.json` at import time. NestJS is correctly flagged as committed through Q3 2026 (unavailable for new work) rather than listed as available. Prompt fallback when seeds absent. |
+| Prompt sync (both paths) | `signal_brief.py` (pipeline path) SYSTEM_PROMPT now matches `prompts.py` (act1 path): bench block, ICP priority order, tone rules, `bench_match` + `honesty_flags` in output schema. Both paths now produce identical output structure. |
+| ICP disqualifier pre-screen | `_check_disqualifiers()` in both `pipeline.py` and `brief_generator.py` rejects companies with headcount >5000, consumer-app industry, or anti-offshore stance **before** the LLM is called. Returns `icp_segment="disqualified"` with reasons. |
+| Exec commentary extraction | `pipeline.py` now extracts executive AI keywords from `recent_news`, `description`, and `leadership_changes` before calling `maturity.score()`, improving the rule-based pre-score for funded companies with AI announcements. |
+| Sector AI distribution | `_compute_sector_ai_distribution()` computes median and p75 AI maturity scores from sector peers and appends them to the competitor signals block, giving the LLM quantitative context for `prospect_position_in_sector`. |
+| Abstention path enforcement | `act2_email_execution.py` overrides `icp_segment` to `Ambiguous` when `confidence < 0.6`, enforcing the spec rule: "abstain from segment-specific pitch when signal is insufficient." |
+| Signal quality display | `act1_brief_validation.py` prints per-source confidence bars before the LLM call and shows them again in the Confidence Summary alongside brief output confidence. |
+| Latency measurement | `act2_email_execution.py` measures and reports `Email gen latency` and `Total run latency` in the Summary section. |
+| 5-marker tone validation | `generator.py` now checks all five style-guide tone markers: DIRECT (subject prefix pattern), GROUNDED (aggressive-hiring gate), HONEST (`bench` jargon ban), PROFESSIONAL (extended phrase list), NON-CONDESCENDING (deficit framing detection). |
+
+---
+
+## Outreach Email Sequence
+
+The agent produces three emails per prospect following `seeds/.../email_sequences/cold.md`. Structure is enforced at the LLM prompt level; individual emails must be signal-grounded, not templated:
+
+| Email | Timing | Purpose |
+| --- | --- | --- |
+| Email 1 | Day 0 | Signal-grounded opener (120 words max). Subject pattern varies by ICP segment. |
+| Email 2 | Day 5 | New competitor-gap data point — not a follow-up nag. 100 words max. |
+| Email 3 | Day 12 | Gracious close. 70 words max. Leaves a door open, stops the sequence. |
+
+Sequence terminates immediately on prospect reply, opt-out, bounce, or later disqualification.
+
+---
+
+## HubSpot Integration
+
+The HubSpot developer sandbox acts as the contact database and activity log for every prospect interaction. All writes use the private-app token (`HUBSPOT_PRIVATE_APP_TOKEN`). No OAuth flow or webhook subscription is required for write-path operations.
+
+### Contact lifecycle
+
+```text
+Act II email sent
+      │
+      ▼
+upsert_contact()  ──► NEW (hs_lead_status)
+      │                + enrichment_timestamp, tenacious_status="draft",
+      │                  ai_maturity_score, icp_segment, enrichment_confidence
+      │
+      ├── Cal.com BOOKING_CREATED ──► search_contact(email)
+      │                               add_note(booking title / time / video link)
+      │                               update_contact(hs_lead_status=IN_PROGRESS)
+      │
+      ├── Africa's Talking inbound SMS ──► search_contact(phone)
+      │                                    add_note(SMS text + timestamp)
+      │                                    update_contact(hs_lead_status=IN_PROGRESS)
+      │
+      └── Cal.com BOOKING_CANCELLED ──► search_contact(email)
+                                        add_note(cancelled + original time)
+                                        update_contact(hs_lead_status=OPEN)
+```
+
+`BOOKING_RESCHEDULED` events also call `add_note()` with the new time but do not change `hs_lead_status`.
+
+### Client functions (`agent/hubspot/client.py`)
+
+| Function | When called | What it does |
+| --- | --- | --- |
+| `upsert_contact(email, first_name, last_name, company, phone, enrichment)` | Act II script, Cal.com BOOKING_CREATED | POST `/crm/v3/objects/contacts` — falls back to PATCH on 409 conflict |
+| `search_contact(filter_property, value)` | Webhook handlers | POST `/crm/v3/objects/contacts/search` — returns contact ID or None |
+| `update_contact(contact_id, properties)` | Webhook handlers | PATCH `/crm/v3/objects/contacts/{id}` — always sets `tenacious_status=draft` as default |
+| `add_note(contact_id, note_body)` | Webhook handlers | POST `/crm/v3/objects/notes` with association to contact |
+| `log_enrichment_note(contact_id, enrichment)` | Integration smoketest | Convenience wrapper — formats brief fields as a structured note body |
+
+### Webhook-driven state machine
+
+```text
+Endpoint                    Trigger event          HubSpot side-effects
+──────────────────────────  ─────────────────────  ──────────────────────────────────────────
+POST /webhooks/cal          BOOKING_CREATED        upsert → add_note(booking details)
+                                                   → status=IN_PROGRESS
+POST /webhooks/cal          BOOKING_CANCELLED      search → add_note(cancelled)
+                                                   → status=OPEN
+POST /webhooks/cal          BOOKING_RESCHEDULED    search → add_note(new time only)
+POST /webhooks/africastalking  inbound SMS         search by phone → add_note(text)
+                                                   → status=IN_PROGRESS
+POST /webhooks/resend       email.delivered etc.   on_email_reply() — logs event, no CRM write
+POST /webhooks/hubspot      CRM subscription       logs event only (contact.propertyChange etc.)
+```
+
+All webhook endpoints verify HMAC signatures (Svix for Resend, SHA-256 for Cal.com, SHA-256 for HubSpot). Signature failures emit a `WARNING` log but do not block in dev mode.
+
+### Custom properties (required in a fresh sandbox)
+
+Five custom contact properties must be created before the first upsert. Run once per sandbox:
+
+```python
+# Via HubSpot Properties API (or the Sandbox UI: Contacts → Properties → Create)
+properties = [
+    ("enrichment_timestamp", "string"),
+    ("tenacious_status",     "string"),   # always "draft"
+    ("ai_maturity_score",    "string"),   # "0"–"3"
+    ("icp_segment",          "string"),   # segment label from brief
+    ("enrichment_confidence","string"),   # "0.0"–"1.0"
+]
+```
+
+After creating the properties, verify with `python scripts/hubspot_smoketest.py`.
 
 ---
 
@@ -332,10 +458,12 @@ A full data-leakage audit was run against the committed repository. Findings and
 | `.env` contains real API keys | Critical | `.env` is in `.gitignore` line 1 — **not tracked by git**. Keys are local only. |
 | `Birkity@10academy.org` hardcoded as default in `scripts/resend_smoketest.py` | Medium | **Fixed** — default removed; script now requires `RESEND_SMOKE_TEST_EMAIL` in `.env` or exits with an error instead of silently emailing a real inbox. |
 | Personal Cal.com slug as fallback in `agent/calendar/client.py` | Low | **Intentional** — this is the programme-specific booking link, not a data leak. Remains as-is. |
-| `prospect_info.json` contact data | Check | All prospects use synthetic `@sink.trp1.internal` addresses. Rule 2 compliant. |
+| `prospect_info.json` contact data | Check | All prospects use synthetic `@sink.example.com` addresses (RFC 2606 reserved). Rule 2 compliant. `.internal` TLD was changed after HubSpot rejected it. |
+| `.env` contains real API keys | Check | `.env` is in `.gitignore` line 1 — **not tracked by git**. `git ls-files .env` returns nothing. |
+| `seeds/` contains Tenacious bench data | Check | `seeds/` is gitignored — **not tracked by git**. `git ls-files seeds/` returns nothing. |
 | `score_log.json` and `trace_log.jsonl` committed | Check | **Intentional** — required submission deliverables. No PII in either file. |
 | `interim_report.tex` contains full name | Check | `*.tex` is in `.gitignore` — file is **not tracked by git**. |
 | LLM prompts in `prompts.py` and `generator.py` | Check | All prompts use parametric templates. No real data embedded. |
 | `policy/acknowledgement_signed.txt` contains full name | Check | **Intentional** — signed policy acknowledgement required by the programme. |
 
-**Verdict:** No credentials, personal contact data, or real prospect PII are committed to the repository. One medium-severity hardcoded email default was found and fixed.
+**Verdict (updated April 24, 2026):** No credentials, personal contact data, or real prospect PII are committed to the repository. `.env` and `seeds/` are gitignored and have never been tracked by git — audit tool false positives that scanned the local filesystem rather than git-tracked files. One medium-severity hardcoded email default was found and fixed (April 23). The `@sink.trp1.internal` email domain used in early `prospect_info.json` files was changed to `@sink.example.com` after HubSpot rejected the `.internal` TLD — both are RFC-reserved non-routable domains; the change is a technical fix, not a policy violation.
