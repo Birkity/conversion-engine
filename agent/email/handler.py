@@ -98,6 +98,70 @@ Tenacious Consulting and Outsourcing
     return send(to, subject, body)
 
 
-def on_email_reply(email_id: str, event_type: str) -> None:
-    """Downstream hook for inbound email events from Resend webhook. Extend to route to CRM."""
+def on_email_reply(
+    email_id: str,
+    event_type: str,
+    reply_text: str = "",
+    last_email: dict | None = None,
+    briefs: dict | None = None,
+    prospect_info: dict | None = None,
+) -> dict | None:
+    """
+    Downstream hook for inbound email events from Resend webhook.
+
+    When reply_text + context are provided, runs Act III interpretation
+    and routes the decision (send cal link, clarification, or stop).
+
+    Args:
+        email_id:     Resend email ID for the event.
+        event_type:   Resend event type (e.g., 'email.delivered', 'email.replied').
+        reply_text:   The prospect's reply body text (if available).
+        last_email:   Dict with 'subject' and 'body' of what we sent.
+        briefs:       Dict with 'hiring_signal_brief' and 'competitor_gap_brief'.
+        prospect_info: Dict with 'name', 'role', 'company', 'email'.
+
+    Returns:
+        dict with interpretation + routing result, or None for non-reply events.
+    """
     log.info("email_event id=%s type=%s", email_id, event_type)
+
+    # Only process if we have reply text and context to interpret
+    if not reply_text or not briefs or not prospect_info:
+        log.info("email_event id=%s: no reply context, logging only", email_id)
+        return None
+
+    try:
+        from agent.reply_interpreter import interpret_reply
+        from agent.reply_interpreter.router import route_decision
+
+        decision = interpret_reply(
+            reply_text=reply_text,
+            last_email=last_email or {"subject": "", "body": ""},
+            briefs=briefs,
+            prospect_info=prospect_info,
+        )
+
+        log.info(
+            "reply_interpreted email_id=%s intent=%s confidence=%s next_step=%s",
+            email_id, decision.get("intent"), decision.get("confidence"),
+            decision.get("next_step"),
+        )
+
+        route_result = route_decision(
+            decision=decision,
+            prospect_info=prospect_info,
+            briefs=briefs,
+            last_email=last_email,
+        )
+
+        log.info(
+            "reply_routed email_id=%s actions=%s errors=%s",
+            email_id, route_result.get("actions"), route_result.get("errors"),
+        )
+
+        return {"decision": decision, "routing": route_result}
+
+    except Exception as exc:
+        log.error("reply interpretation failed for email_id=%s: %s", email_id, exc)
+        return {"error": str(exc)}
+

@@ -58,7 +58,7 @@ Body (Email 1 — cold opener):
     Line 2: [One concrete verifiable fact from the hiring signal brief]
     Line 3: [The typical bottleneck companies in this state hit — observation, not assertion]
     Line 4: [One specific Tenacious capability that matches — no service menu]
-    Line 5: [The ask — 15 minutes, a day of the week, the Cal.com link]
+    Line 5: [A soft open question that invites a reply — no booking link, no specific times, no "15 minutes". Ask about their current state or a specific challenge implied by the brief signal.]
     Blank line, then signature block:
     [Sender first name]
     Research Partner, Tenacious Intelligence Corporation
@@ -119,9 +119,6 @@ Prospect position: {sector_position}
 Gaps:
 {gaps_text}
 
-=== CAL.COM BOOKING LINK ===
-{cal_link}
-
 === SENDER ===
 First name: Birkity
 Title: Research Partner
@@ -149,16 +146,18 @@ def generate_email(
     hsb: dict,
     cgb: dict,
     prospect_info: dict,
-    cal_link: str = "",
 ) -> dict:
     """
     Compose a signal-grounded cold outreach email (Email 1).
+
+    Act II contract: cold email ends with a soft conversational question only.
+    No booking links, no scheduling asks, no Cal.com URLs. Those are sent by the
+    Act III router after a prospect replies with INTERESTED or SCHEDULE intent.
 
     Args:
         hsb: hiring_signal_brief dict
         cgb: competitor_gap_brief dict
         prospect_info: {"name", "role", "email", "company"} — must be synthetic
-        cal_link: pre-filled Cal.com booking URL
 
     Returns:
         dict with keys: subject, body, word_count, icp_segment_used,
@@ -192,7 +191,6 @@ def generate_email(
         sector=cgb.get("sector", "unknown"),
         sector_position=cgb.get("prospect_position_in_sector", "unknown"),
         gaps_text=_format_gaps(cgb.get("gaps", [])),
-        cal_link=cal_link or os.getenv("CALCOM_EVENT_URL", "https://cal.com/booking/intro"),
     )
 
     import json
@@ -263,6 +261,15 @@ def generate_email(
                     "you need to catch up", "left behind"):
         if deficit in body_lower:
             warnings.append(f"condescending_framing: '{deficit}'")
+
+    # BOOKING-LINK GUARD: Act II emails must never contain booking URLs or meeting asks.
+    # Cal.com links are sent by the Act III router only, after an INTERESTED/SCHEDULE reply.
+    for pat in ("http", "cal.com", "schedule", "15 minutes", "book a", "book time", "meeting"):
+        if pat in body_lower or pat in subject_lower:
+            warnings.append(
+                f"booking_link_violation: '{pat}' detected — "
+                "Act II emails must end with a conversational question only"
+            )
 
     result["word_count"] = word_count
     result["tone_warnings"] = warnings

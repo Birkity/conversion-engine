@@ -38,7 +38,6 @@ load_dotenv()
 
 from agent.email.generator import generate_email
 from agent.email.handler import send, KILL_SWITCH
-from agent.calendar.client import booking_link
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -188,25 +187,17 @@ def main() -> int:
         hsb = dict(hsb)
         hsb["icp_segment"] = "Ambiguous"
 
-    # ── Generate Cal.com booking link ────────────────────────────
-    t_start = time.perf_counter()
-    cal_url = booking_link(
-        prospect_name=prospect_name,
-        prospect_email=prospect_email,
-        notes=hsb.get("recommended_pitch_angle", "")[:200],
-    )
-
     # ── Generate email ────────────────────────────────────────────
     _section("Generating Email (LLM)")
     print("  Calling email_generator.generate_email() ...")
 
+    t_start = time.perf_counter()
     t_email_start = time.perf_counter()
     try:
         email_result = generate_email(
             hsb=hsb,
             cgb=cgb,
             prospect_info=prospect,
-            cal_link=cal_url,
         )
     except Exception as exc:
         print(f"\n  ERROR: email generation failed: {exc}", file=sys.stderr)
@@ -226,8 +217,29 @@ def main() -> int:
     _section("Email Metadata")
     print(f"  ICP segment used  : {icp_used}")
     print(f"  Grounding facts   : {grounding}")
-    print(f"  Cal.com link      : {cal_url[:80]}...")
     print(f"  X-Tenacious-Status: draft  (added by handler, Rule 6)")
+
+    # ── Save artifact for Act III context ────────────────────────
+    _section("Saving Artifact")
+    import datetime as _dt
+    _artifacts_dir = Path("artifacts") / Path(args.traces_dir).name
+    _artifacts_dir.mkdir(parents=True, exist_ok=True)
+    _last_email_record = {
+        "subject": subject,
+        "body": body,
+        "grounding_facts": grounding,
+        "icp_segment_used": icp_used,
+        "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "company": company,
+        "prospect_email": prospect_email,
+    }
+    (_artifacts_dir / "last_email.json").write_text(
+        json.dumps(_last_email_record, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    with open(_artifacts_dir / "email_log.jsonl", "a", encoding="utf-8") as _f:
+        _f.write(json.dumps({**_last_email_record, "word_count": word_count, "tone_warnings": warnings}) + "\n")
+    print(f"  last_email.json : {_artifacts_dir / 'last_email.json'}")
+    print(f"  email_log.jsonl : appended ({_artifacts_dir / 'email_log.jsonl'})")
 
     if args.dry_run:
         _section("Dry Run - Not Sent")

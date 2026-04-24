@@ -2,18 +2,28 @@
 Act III — Reply Interpreter Test Suite.
 
 Runs 14 realistic fake prospect replies through interpret_reply() and prints
-the returned JSON for each.  Uses real trace data from traces/arcana/ to
-build the hiring_signal_brief, competitor_gap_brief, and prospect_info context.
+the returned JSON for each.  Uses real trace data from traces/<company>/ to
+build the hiring_signal_brief, competitor_gap_brief, and prospect_info context,
+and loads last_email from artifacts/<company>/last_email.json (written by act2).
+
+This script is an OFFLINE REASONING TEST ONLY.  It must NOT:
+  - Send any emails
+  - Call any webhooks
+  - Update HubSpot
+  - Use real email addresses
 
 Prerequisites:
   - OPENROUTER_API_KEY set in .env
+  - Run act2_email_execution.py first to populate artifacts/<company>/last_email.json
   - (Optional) Langfuse credentials for tracing
 
 Usage:
     cd <repo-root>
     python scripts/act3_reply_tests.py
+    python scripts/act3_reply_tests.py --company kinanalytics
 """
 
+import argparse
 import json
 import os
 import sys
@@ -35,14 +45,31 @@ load_dotenv(REPO_ROOT / ".env")
 from agent.reply_interpreter import interpret_reply
 
 # ---------------------------------------------------------------------------
+# Parse company argument
+# ---------------------------------------------------------------------------
+
+_parser = argparse.ArgumentParser(
+    description="Act III offline reply-interpreter test suite."
+)
+_parser.add_argument(
+    "--company",
+    default="arcana",
+    help="Company slug to load context from traces/<company>/ and artifacts/<company>/. "
+         "Default: arcana",
+)
+_args = _parser.parse_args()
+_COMPANY = _args.company
+
+# ---------------------------------------------------------------------------
 # Load real trace data for grounding context
 # ---------------------------------------------------------------------------
 
-TRACES_DIR = REPO_ROOT / "traces" / "arcana"
+TRACES_DIR = REPO_ROOT / "traces" / _COMPANY
+ARTIFACTS_DIR = REPO_ROOT / "artifacts" / _COMPANY
 
 
-def _load_json(filename: str) -> dict:
-    path = TRACES_DIR / filename
+def _load_json(filename: str, base_dir: Path = TRACES_DIR) -> dict:
+    path = base_dir / filename
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
     print(f"  [WARN] {path} not found, using empty dict")
@@ -65,21 +92,33 @@ PROSPECT_INFO = {
     "email": PROSPECT.get("email", "jordan.osei@sink.example.com"),
 }
 
-# Simulated last email (what we sent to the prospect)
-LAST_EMAIL = {
-    "subject": "Context: Series A and ML hiring velocity at Arcana Analytics",
-    "body": (
-        "Jordan,\n\n"
-        "Arcana Analytics closed a $14M Series A in March and your open "
-        "engineering roles doubled in the last 60 days — the typical bottleneck "
-        "for teams at that stage is recruiting velocity, not budget.\n\n"
-        "We have Python and ML engineers available to deploy next week. "
-        "Would a 15-minute call on Thursday make sense?\n\n"
-        "Birkity\n"
-        "Research Partner, Tenacious Intelligence Corporation\n"
-        "gettenacious.com"
-    ),
-}
+# ---------------------------------------------------------------------------
+# Load last_email from artifacts (written by act2_email_execution.py)
+# Falls back to a representative sample if the artifact hasn't been generated yet.
+# ---------------------------------------------------------------------------
+
+_last_email_path = ARTIFACTS_DIR / "last_email.json"
+if _last_email_path.exists():
+    LAST_EMAIL = json.loads(_last_email_path.read_text(encoding="utf-8"))
+    print(f"  [OK]  Loaded last_email from {_last_email_path}")
+else:
+    print(f"  [WARN] {_last_email_path} not found — using fallback. Run act2 first:")
+    print(f"         python scripts/act2_email_execution.py traces/{_COMPANY} --dry-run")
+    LAST_EMAIL = {
+        "subject": "Context: Series A and ML hiring velocity at Arcana Analytics",
+        "body": (
+            "Jordan,\n\n"
+            "Arcana Analytics closed a $14M Series A in March and your open "
+            "engineering roles doubled in the last 60 days — the typical bottleneck "
+            "for teams at that stage is recruiting velocity, not budget.\n\n"
+            "We have Python and ML engineers available to deploy. "
+            "Are you thinking about this mostly as a hiring-speed problem "
+            "or a skill-depth problem?\n\n"
+            "Birkity\n"
+            "Research Partner, Tenacious Intelligence Corporation\n"
+            "gettenacious.com"
+        ),
+    }
 
 # ---------------------------------------------------------------------------
 # Test replies — 14 realistic scenarios covering all 5 intent classes
