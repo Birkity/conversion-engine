@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent.brief_generator import generate
+from agent.brief_generator.brief_generator import _derive_signal_confidence, _check_disqualifiers
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -179,6 +180,23 @@ def main() -> int:
     print(f"  jobs_60_days       : {signals.get('jobs_60_days')}")
     print(f"  tech_stack         : {signals.get('tech_stack')}")
     print(f"  ai_roles           : {signals.get('ai_roles')}")
+
+    # ── Signal quality pre-check ─────────────────────────────────────────────
+    _section("Input Signal Quality")
+    conf = _derive_signal_confidence(signals)
+    for src, val in conf.items():
+        filled = int(val * 10)
+        bar = "█" * filled + "░" * (10 - filled)
+        label = "LOW " if val < 0.5 else ("MED " if val < 0.8 else "HIGH")
+        print(f"  {src:<15}: {val:.2f}  [{bar}] {label}")
+
+    disq = _check_disqualifiers(signals)
+    if disq:
+        print(f"\n  DISQUALIFIERS DETECTED: {disq}")
+        print("  This company would be flagged and LLM brief skipped in pipeline mode.")
+    else:
+        print("\n  No disqualifiers detected.")
+
     print(f"\n  Calling brief_generator.generate() ...")
 
     # ── Generate ────────────────────────────────────────────────
@@ -221,11 +239,18 @@ def main() -> int:
 
     # ── Confidence summary ───────────────────────────────────────
     _section("Confidence Summary")
-    print(f"  hiring_signal_brief.confidence   : {hsb.get('confidence')}")
+    print(f"  Input signal quality (per-source):")
+    for src, val in conf.items():
+        print(f"    {src:<15}: {val:.2f}")
+    print()
+    print(f"  hiring_signal_brief.confidence          : {hsb.get('confidence')}")
     print(f"  competitor_gap_brief.overall_confidence : {cgb.get('overall_confidence')}")
     gap_confidences = [g.get('confidence') for g in cgb.get('gaps', []) if 'confidence' in g]
     if gap_confidences:
-        print(f"  per-gap confidence scores        : {gap_confidences}")
+        print(f"  per-gap confidence scores               : {gap_confidences}")
+    disq_out = result.get("disqualifiers", [])
+    if disq_out:
+        print(f"\n  DISQUALIFIERS (from brief output): {disq_out}")
 
     # ── Output paths ─────────────────────────────────────────────
     _section("Output Files")

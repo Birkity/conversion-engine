@@ -10,6 +10,43 @@ import json
 from .llm_client import call_llm
 from .prompts import SYSTEM_PROMPT, USER_TEMPLATE
 
+# ── ICP disqualifier constants (mirrored from pipeline.py for act1 path) ──────
+_CONSUMER_INDUSTRY_KEYWORDS = {
+    "gaming", "consumer", "social media", "dating", "entertainment",
+    "fitness", "food delivery", "e-commerce", "retail consumer",
+}
+_ANTI_OFFSHORE_KEYWORDS = {
+    "we don't work with offshore", "no offshore", "domestic only",
+    "in-house only", "no contractors",
+}
+
+
+def _check_disqualifiers(signals: dict) -> list[str]:
+    """Return a list of disqualifier reasons from a signals dict."""
+    disq: list[str] = []
+
+    headcount_str = str(signals.get("headcount", ""))
+    try:
+        hc = int(headcount_str.replace(",", "").split()[0])
+        if hc > 5000:
+            disq.append(f"headcount_exceeds_5000: {hc}")
+    except (ValueError, IndexError, AttributeError):
+        pass
+
+    industries = signals.get("industries", [])
+    if isinstance(industries, list):
+        industry_text = " ".join(i.lower() for i in industries)
+    else:
+        industry_text = str(industries).lower()
+    if any(kw in industry_text for kw in _CONSUMER_INDUSTRY_KEYWORDS):
+        disq.append("consumer_app_industry")
+
+    desc_lower = str(signals.get("description", "")).lower()
+    if any(kw in desc_lower for kw in _ANTI_OFFSHORE_KEYWORDS):
+        disq.append("anti_offshore_stance_in_description")
+
+    return disq
+
 _HSB_FIELDS = {
     "hiring_velocity", "budget_urgency", "cost_pressure", "engineering_maturity",
     "ai_maturity_score", "ai_maturity_rationale", "confidence", "icp_segment",
@@ -109,6 +146,7 @@ def generate(signals: dict) -> dict:
         dict with "hiring_signal_brief" and "competitor_gap_brief" keys.
     """
     company_name = signals.get("company_name", "Unknown")
+    disqualifiers = _check_disqualifiers(signals)
 
     industries = signals.get("industries", [])
     if isinstance(industries, list):
@@ -156,4 +194,6 @@ def generate(signals: dict) -> dict:
     except json.JSONDecodeError as e:
         raise ValueError(f"LLM returned invalid JSON: {e}\nRaw: {raw[:500]}") from e
 
-    return _normalize(parsed, company_name)
+    result = _normalize(parsed, company_name)
+    result["disqualifiers"] = disqualifiers
+    return result

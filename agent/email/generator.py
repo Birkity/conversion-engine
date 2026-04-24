@@ -214,20 +214,55 @@ def generate_email(
     raw = response.choices[0].message.content
     result = json.loads(raw)
 
-    # Post-generation validation
+    # Post-generation validation — all 5 tone markers from style_guide.md
     warnings = []
     body = result.get("body", "")
     subject = result.get("subject", "")
     word_count = len(body.split())
 
+    # FORMAT constraints
     if word_count > 120:
         warnings.append(f"body_too_long: {word_count} words (max 120)")
     if len(subject) > 60:
         warnings.append(f"subject_too_long: {len(subject)} chars (max 60)")
+
+    body_lower = body.lower()
+    subject_lower = subject.lower()
+
+    # Marker 1 — DIRECT: subject must use approved prefix patterns
+    _approved_prefixes = ("context:", "note on", "congrats on", "question on")
+    if not any(subject_lower.startswith(p) for p in _approved_prefixes):
+        warnings.append(f"not_direct_subject_prefix: '{subject[:50]}'")
+    for filler in ("quick ", "just ", "hey ", "hope this finds"):
+        if filler in subject_lower or filler in body_lower:
+            warnings.append(f"filler_word_detected: '{filler.strip()}'")
+
+    # Marker 2 — GROUNDED: banned phrases + aggressive hiring gate
     for banned in ("top talent", "world-class", "rockstar", "ninja",
                    "aggressive hiring", "cost savings"):
-        if banned.lower() in body.lower():
+        if banned.lower() in body_lower:
             warnings.append(f"banned_phrase_detected: '{banned}'")
+    jobs_now = hsb.get("hiring_velocity", {}).get("delta_pct")
+    try:
+        if "aggressive" in body_lower and int(jobs_now or 0) < 5:
+            warnings.append("grounded_violation: 'aggressive' used when jobs_now < 5")
+    except (TypeError, ValueError):
+        pass
+
+    # Marker 3 — HONEST: "bench" is jargon; should say "engineers available"
+    if "bench" in body_lower:
+        warnings.append("banned_jargon: 'bench' detected — use 'engineers available'")
+
+    # Marker 4 — PROFESSIONAL: additional banned phrases
+    for prof_banned in ("cost savings of", "guaranteed roi", "proven track record"):
+        if prof_banned in body_lower:
+            warnings.append(f"unprofessional_phrase: '{prof_banned}'")
+
+    # Marker 5 — NON-CONDESCENDING: deficit framing
+    for deficit in ("falling behind", "you're behind", "you lack", "you're missing",
+                    "you need to catch up", "left behind"):
+        if deficit in body_lower:
+            warnings.append(f"condescending_framing: '{deficit}'")
 
     result["word_count"] = word_count
     result["tone_warnings"] = warnings

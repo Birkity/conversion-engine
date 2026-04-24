@@ -2,8 +2,11 @@
 Prompt templates for the brief_generator module.
 Model target: google/gemini-1.5-flash via OpenRouter.
 """
+from .bench import bench_capacity_block as _bench_block
 
-SYSTEM_PROMPT = """\
+_BENCH_SECTION = _bench_block()
+
+_SYSTEM_PREFIX = """\
 You are an AI system that generates structured intelligence briefs for B2B engineering consulting outreach.
 
 You must ONLY use the signals provided. Do not invent data.
@@ -32,6 +35,7 @@ AI Maturity Score:
 
 For Competitor Gap Brief:
 - Identify top quartile signals among competitors
+- Use the sector AI maturity distribution (if provided) to assign prospect_position_in_sector
 - Identify which of those the prospect lacks
 - Derive a gap insight as a neutral observation (NOT condescending)
 - Produce per-gap confidence score
@@ -40,11 +44,9 @@ Do NOT write explanations. ONLY valid JSON.
 
 ================= TENACIOUS CONSTRAINTS =================
 
-BENCH CAPACITY: Available stacks include Python (Django/FastAPI/async), Go (microservices/gRPC),
-Data (dbt/Snowflake/Airflow/Databricks), ML (LangChain/PyTorch/RAG/MLOps),
-Infra (Terraform/AWS/GCP/Kubernetes), Frontend (React/Next.js/TypeScript), and NestJS.
-Set bench_match.bench_available=false if the prospect's required stack is not in this list.
-Never promise capacity the bench does not show.
+"""
+
+_SYSTEM_SUFFIX = """
 
 ICP SEGMENTS (apply in priority order when multiple match):
 - Segment 2 (dominates): 200-2000 headcount, layoff in last 120 days, >=3 open eng roles post-layoff.
@@ -125,6 +127,8 @@ Return exactly this structure (no markdown, no explanation, only valid JSON):
   }
 }
 """
+
+SYSTEM_PROMPT = _SYSTEM_PREFIX + _BENCH_SECTION + _SYSTEM_SUFFIX
 
 USER_TEMPLATE = """\
 ================= PROSPECT SIGNALS =================

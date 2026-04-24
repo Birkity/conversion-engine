@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -178,7 +179,17 @@ def main() -> int:
         except Exception as exc:
             print(f"  WARNING: HubSpot upsert skipped due to error: {exc}")
 
+    # ── Abstention path: override to generic pitch if confidence < 0.6 ──────────
+    brief_confidence = float(hsb.get("confidence", 1.0))
+    if brief_confidence < 0.6:
+        _section("Abstention Path Active")
+        print(f"  confidence={brief_confidence} < 0.6 — spec rule: use generic pitch, not segment-specific.")
+        print(f"  Overriding icp_segment from '{hsb.get('icp_segment')}' to 'Ambiguous'.")
+        hsb = dict(hsb)
+        hsb["icp_segment"] = "Ambiguous"
+
     # ── Generate Cal.com booking link ────────────────────────────
+    t_start = time.perf_counter()
     cal_url = booking_link(
         prospect_name=prospect_name,
         prospect_email=prospect_email,
@@ -189,6 +200,7 @@ def main() -> int:
     _section("Generating Email (LLM)")
     print("  Calling email_generator.generate_email() ...")
 
+    t_email_start = time.perf_counter()
     try:
         email_result = generate_email(
             hsb=hsb,
@@ -199,6 +211,7 @@ def main() -> int:
     except Exception as exc:
         print(f"\n  ERROR: email generation failed: {exc}", file=sys.stderr)
         return 1
+    email_latency_ms = int((time.perf_counter() - t_email_start) * 1000)
 
     subject = email_result.get("subject", "")
     body = email_result.get("body", "")
@@ -219,6 +232,7 @@ def main() -> int:
     if args.dry_run:
         _section("Dry Run - Not Sent")
         print("  --dry-run flag set. Email generated but not submitted to Resend.")
+        print(f"  Email gen latency: {email_latency_ms} ms")
         print("  Remove --dry-run to send to the sink address.")
         return 0
 
@@ -250,6 +264,8 @@ def main() -> int:
     else:
         print(f"  status       : {status}  ({send_result})")
 
+    total_latency_ms = int((time.perf_counter() - t_start) * 1000)
+
     _section("Summary")
     print(f"  Email generated  : YES")
     print(f"  Word count       : {word_count}/120")
@@ -258,6 +274,8 @@ def main() -> int:
     print(f"  Sent to sink     : {'YES' if status == 'sent' else 'NO'}")
     print(f"  Draft header     : YES (X-Tenacious-Status: draft)")
     print(f"  Real prospect    : NO (synthetic profile, kill switch active)")
+    print(f"  Email gen latency: {email_latency_ms} ms")
+    print(f"  Total run latency: {total_latency_ms} ms")
     print()
     print("  act2_email_execution PASSED")
     return 0
