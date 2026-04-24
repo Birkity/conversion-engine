@@ -62,7 +62,7 @@ def _assert_synthetic_email(email: str) -> None:
         print("  Use something like: prospect@sink.trp1.internal")
         sys.exit(1)
     # Warn if it doesn't look like a sink address either
-    if ".trp1." not in email and "sink" not in email and "example" not in email:
+    if ".trp1." not in email and "sink" not in email and "example" not in email and ".invalid" not in email:
         print(f"WARNING: '{email}' does not look like a known sink address.")
         print("  Make sure it routes to the program-controlled sink, not a real inbox.")
 
