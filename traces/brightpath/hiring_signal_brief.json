@@ -1,0 +1,50 @@
+{
+  "company": "BrightPath AI",
+  "hiring_velocity": {
+    "direction": "accelerating",
+    "delta_pct": 85.0,
+    "signal_strength": "strong",
+    "observation": "BrightPath AI has increased open engineering roles by 85% in the last 60 days, signalling rapid post-funding team expansion."
+  },
+  "budget_urgency": {
+    "level": "high",
+    "signal": "Series A $12M closed February 2026",
+    "runway_pressure": "Recent Series A provides 18-24 months runway with aggressive hiring mandate."
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": null
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "medium",
+    "detected_stack": [
+      "Python",
+      "FastAPI",
+      "React",
+      "PostgreSQL",
+      "Docker",
+      "AWS"
+    ],
+    "bench_match_notes": "Standard Python + FastAPI web stack with Docker/AWS infra. Good bench match."
+  },
+  "ai_maturity_score": 1,
+  "ai_maturity_rationale": {
+    "ai_roles_found": ["Data Analyst"],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "weak",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.85,
+  "icp_segment": "Segment 1",
+  "recommended_pitch_angle": "Tenacious can accelerate BrightPath AI's backend scaling by providing senior Python engineers ready to contribute from day one — no ramp time.",
+  "bench_match": {
+    "required_stacks": ["python", "backend", "infra"],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": false,
+    "bench_gap_detected": false
+  },
+  "tenacious_status": "draft"
+}
