@@ -206,6 +206,7 @@ def run_scenario(scenario: dict, dry_run: bool) -> list[dict]:
             print(f"\n{C}[ROUTING ACTIONS]{X}  (dry-run — skipped)")
 
         # SMS warm-lead leg
+        sms_delivery: dict = {}
         if reply_def.get("also_send_sms") and not dry_run:
             cal_url = route_result.get("cal_link") or os.getenv("CALCOM_EVENT_URL", "[cal link]")
             first_name = prospect_info["name"].split()[0]
@@ -215,8 +216,17 @@ def run_scenario(scenario: dict, dry_run: bool) -> list[dict]:
                 message=sms_body,
                 warm_lead=True,
             )
+            sms_ok = sms_result.get("status") == "sent"
+            sms_delivery = {
+                "attempted": True,
+                "delivered": sms_ok,
+                "routed_to_sink": not bool(os.getenv("LIVE_OUTBOUND_ENABLED", "false").lower() == "true"),
+                "prospect_phone_contacted": False,  # always False — sink routing or send failure
+                "at_status": sms_result.get("status"),
+                "error": sms_result.get("error"),
+            }
             print(f"\n{C}[SMS — warm-lead leg]{X}")
-            print(f"  To     : {prospect_info.get('phone')} (AT sandbox → smoke-test sink)")
+            print(f"  To     : AT sandbox → smoke-test sink (prospect phone never contacted)")
             print(f"  Message: {sms_body[:120]}")
             print(f"  Status : {sms_result.get('status')}")
             if sms_result.get("error"):
@@ -243,7 +253,7 @@ def run_scenario(scenario: dict, dry_run: bool) -> list[dict]:
                 "errors": route_result.get("errors", []),
                 "cal_link": route_result.get("cal_link"),
             } if route_result else {},
-            "sms_sent": reply_def.get("also_send_sms", False) and not dry_run,
+            "sms": sms_delivery if sms_delivery else None,
         })
 
         # Advance last_email context for next turn
@@ -306,9 +316,15 @@ def main() -> None:
     for entry in all_logs:
         turns = [t for t in entry["conversation"] if t["from"] == "prospect"]
         routing = [t["interpretation"]["next_step"] for t in turns if "interpretation" in t]
-        sms_flags = [t.get("sms_sent", False) for t in turns]
-        sms_note = "  📱 SMS sent" if any(sms_flags) else ""
-        print(f"  {entry['scenario_id']:<22} → {routing}{sms_note}")
+        sms_attempts = [t["sms"] for t in turns if t.get("sms")]
+        sms_note = ""
+        if sms_attempts:
+            s = sms_attempts[0]
+            if s.get("delivered"):
+                sms_note = "  + SMS delivered to sink"
+            elif s.get("attempted"):
+                sms_note = f"  + SMS attempted (status={s.get('at_status')}, prospect not contacted)"
+        print(f"  {entry['scenario_id']:<22} -> {routing}{sms_note}")
     print(f"\n  Log saved : demo/demo_log.json")
     print(f"  Scenarios : {len(all_logs)}")
 
