@@ -10,16 +10,16 @@
 
 The Conversion Engine correctly classifies 96.9% of inbound prospect replies into actionable next steps — Cal link, clarification email, or stop — outperforming the Day-1 baseline by 21.9 percentage points with statistical certainty (z = 2.517, p = 0.006). Two deterministic guardrails prevent hallucinated grounding facts and low-confidence irreversible routing from reaching prospects, at zero additional API cost. At $3.20–$4.37 per qualified lead, the system operates well inside Tenacious's $5 target and is ready for a controlled pilot on Segment 1.
 
-**τ²-Bench Model Comparison**
+**τ²-Bench Evaluation (retail domain)**
 
-τ²-Bench tests general retail agent reasoning across 30 tasks. Two configurations were evaluated:
+τ²-Bench tests general retail agent reasoning across 30 tasks. Per updated challenge requirements (2026-04-24), Tenacious provides a common programme baseline; each team runs one verification trial.
 
-| Model | pass@1 | 95% CI | Simulations |
-|---|---|---|---|
-| Gemini Flash (production) | 72.7% | [65.0%, 79.2%] | 150 (5 trials × 30 tasks) |
-| GPT-4.1-mini (comparison) | 53.3% | — | 30 (1 trial, no CI) |
+| Run | pass@1 | 95% CI | Simulations | Source |
+|---|---|---|---|---|
+| Tenacious programme baseline | 72.7% | [65.0%, 79.2%] | 150 (5 × 30) | Provided by Tenacious |
+| This project (GPT-4.1-mini, 1 trial) | 53.3% | [35.2%, 71.5%] | 30 (1 × 30) | Run: 2026-04-25 |
 
-The 19.4-point gap confirms model selection materially affects system quality. Gemini Flash is the correct production choice. τ² measures base model reasoning, not the reply interpreter guardrails — the primary evidence of guardrail effectiveness is the probe suite improvement below.
+τ² measures base model reasoning on retail tasks — not the reply interpreter guardrails. The primary quality signal is the 32-probe suite (97% pass rate, 31/32), documented in `probe_library.md`.
 
 **Cost per Qualified Lead**
 
