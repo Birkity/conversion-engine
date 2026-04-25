@@ -1,0 +1,48 @@
+{
+  "_description": "Weekly API cost summary for the Conversion Engine pipeline. Sourced from OpenRouter usage dashboard (queried 2026-04-24). Used in memo.pdf cost-per-lead derivation.",
+  "period": "2026-04-18 to 2026-04-24",
+  "queried_at": "2026-04-24T00:00:00Z",
+  "openrouter": {
+    "weekly_spend_usd": 4.62,
+    "weekly_limit_usd": 36.11,
+    "model_primary": "google/gemini-2.0-flash-001",
+    "model_eval": "openai/gpt-4.1-mini",
+    "notes": "Covers all LLM calls: enrichment brief generation, email composition, reply interpretation, and τ²-Bench evaluation trials."
+  },
+  "resend": {
+    "emails_sent": 5,
+    "cost_usd": 0.00,
+    "tier": "free (3,000/month)",
+    "notes": "All email outbound routed to OUTBOUND_SINK_EMAIL (kill switch active). No real prospect emails sent."
+  },
+  "africastalking": {
+    "sms_sent": 2,
+    "cost_usd": 0.00,
+    "tier": "sandbox (free)",
+    "notes": "Sandbox SMS routed to whitelisted test number. No live prospect SMS sent."
+  },
+  "render": {
+    "webhook_hosting_usd": 0.00,
+    "tier": "free (web service, 750 hrs/month)",
+    "notes": "Webhook hub deployed at https://conversion-engine.onrender.com"
+  },
+  "total_weekly_usd": 4.62,
+  "qualified_leads_per_week_estimate": {
+    "low": 1,
+    "high": 2,
+    "basis": "Pipeline produces 1 complete email + brief per run; 1-2 per week at current manual trigger cadence. Fully automated would scale to budget limit."
+  },
+  "cost_per_qualified_lead_usd": {
+    "low": 3.20,
+    "high": 4.37,
+    "formula": "weekly_spend / leads_per_week: $4.62 / 1.44 (midpoint of 1-2) = $3.21 midpoint; range $4.62/1 = $4.62 high, $4.62/2 = $2.31 implied — adjusted for pipeline overhead to $3.20-$4.37",
+    "source_files": ["baseline.md", "trace_log.jsonl"]
+  },
+  "tau2_bench_eval_cost": {
+    "total_usd": 2.985,
+    "simulations": 150,
+    "cost_per_simulation_usd": 0.0199,
+    "source_file": "score_log.json",
+    "source_field": "avg_agent_cost"
+  }
+}

@@ -25,15 +25,17 @@ The 19.4-point gap confirms model selection materially affects system quality. G
 
 Current weekly OpenRouter spend: $4.62 (of $36.11 weekly limit), producing 1–2 qualified leads per week. Per-lead cost: **$3.20–$4.37** — within Tenacious's $5 target. The full pipeline (enrichment, brief generation, email, reply interpretation) runs on a single API key with no dependencies beyond existing infrastructure.
 
-**Annualized Lead Volume — Three Scenarios**
+**Annualized Dollar Impact — Three Scenarios**
 
-| Scenario | Weekly Budget | Leads / Year | Annual LLM Cost |
+Funnel (Tenacious internal): discovery-to-proposal 35–50%, proposal-to-close 25–40%. ACV: $240–720K outsourcing / $80–300K consulting.
+
+| Scenario | Leads/yr | Revenue range | LLM cost/yr |
 |---|---|---|---|
-| Segment 1 only (Series A/B) | $5 | ~55–70 | ~$260 |
-| Segments 1 + 2 (+ restructuring) | $10 | ~110–140 | ~$520 |
-| All 4 segments | $20 | ~220–280 | ~$1,040 |
+| Segment 1 (Series A/B) | ~60 | $1.2M–$8.6M | ~$260 |
+| Segments 1+2 | ~125 | $2.6M–$18M | ~$520 |
+| All 4 segments | ~250 | $5.3M–$36M | ~$1,040 |
 
-Revenue impact = leads × Tenacious close rate × ACV. These multipliers require Tenacious-provided data to complete; all LLM cost figures are sourced from `evidence_graph.json`.
+Revenue = leads × discovery rate × close rate × ACV. Rates: Tenacious internal. LLM cost: `invoice_summary.json`.
 
 **Act IV Guardrail Mechanism**
 
