@@ -143,6 +143,12 @@
       "value": 10,
       "source_file": "failure_taxonomy.md",
       "source_field": "category count in summary table"
+    },
+    "tau2_bench_gpt41mini_pass_at_1": {
+      "value": 0.533,
+      "source_file": "eval/tau2 terminal output (not committed)",
+      "unit": "proportion (0–1)",
+      "notes": "GPT-4.1-mini, 1 trial × 30 tasks. Comparison run only. No 95% CI available — 1 trial is statistically insufficient. Gemini Flash outperforms by 19.4pp on the same retail task suite. Model: openai/gpt-4.1-mini via OpenRouter."
     }
   }
 }
