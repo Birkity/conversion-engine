@@ -22,6 +22,5 @@ Draft Tenacious Sales Materials Template.md
 eval/
 *.tex
 seeds/
-memo.pdf
 # Artifacts — last_email.json tracked for Act III reproducibility; append-only logs are not
 artifacts/**/*.jsonl

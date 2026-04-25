@@ -101,6 +101,31 @@ cp .env.example .env
 
 ## Key Scripts
 
+### Demo — End-to-end conversation simulator
+
+```bash
+# Run all 4 scenarios (email + HubSpot + SMS all routed to sinks)
+python scripts/demo_runner.py
+
+# Single scenario
+python scripts/demo_runner.py arcana_skeptic    # skeptic → clarification → Cal link
+python scripts/demo_runner.py pulsesight_sms   # bench question → email → SMS Cal link
+python scripts/demo_runner.py novaspark_fast   # Segment 3 fast close (1 turn → Cal link)
+python scripts/demo_runner.py coraltech_stop   # NOT_INTERESTED → STOP → HubSpot UNQUALIFIED
+
+# No sends (generate emails + interpret replies only)
+python scripts/demo_runner.py --dry-run
+```
+
+Runs 4 synthetic companies through the full pipeline: outbound email generation → prospect reply → `interpret_reply()` → `route_decision()` → HubSpot update. One scenario (PulseSight) includes an SMS warm-lead leg after the Cal link is sent. All outbound routes to sinks (kill switch active). Conversation log saved to `demo/demo_log.json`.
+
+| Scenario | Company | Turns | Expected routing | SMS |
+| --- | --- | --- | --- | --- |
+| `arcana_skeptic` | Arcana Analytics (Seg 1) | 2 | QUESTION → SEND_EMAIL, INTERESTED → SEND_CAL_LINK | — |
+| `pulsesight_sms` | PulseSight (Seg 1/4) | 2 | QUESTION → SEND_EMAIL, SCHEDULE → SEND_CAL_LINK | ✓ |
+| `novaspark_fast` | NovaSpark (Seg 3) | 1 | INTERESTED → SEND_CAL_LINK | — |
+| `coraltech_stop` | CoralTech (disqualified) | 1 | NOT_INTERESTED → STOP | — |
+
 ### Act III — Reply interpretation (offline probe suite)
 
 ```bash
@@ -304,8 +329,14 @@ conversion-engine/
 │   │   ├── competitor_gap_brief.json
 │   │   └── prospect_info.json     ← Synthetic prospect (Rule 2)
 │   ├── kinanalytics/              ← Segment 1: Series A, 35 hc, 7 open roles
+│   ├── pulsesight/                ← Segment 1/4: Series A $9M, ML Infrastructure, 31 hc
+│   ├── novaspark/                 ← Segment 3: Series B $22M, new VP Eng (Feb 2026), 85 hc
+│   ├── coraltech/                 ← Disqualified: B2C e-commerce, anti-offshore CEO stance
 │   ├── snaptrade/                 ← Ambiguous: decelerating hiring, no funding
 │   └── wiseitech/                 ← Ambiguous: zero jobs, weak signal flagged
+├── demo/
+│   ├── scenarios.json             ← 4 demo scenario definitions with expected routing
+│   └── demo_log.json              ← Output from last demo_runner.py run
 ├── policy/
 │   └── acknowledgement_signed.txt ← Rule 5 compliance acknowledgement
 ├── probe_library.md               ← All 32 probes documented by category + business impact

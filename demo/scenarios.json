@@ -1,0 +1,94 @@
+{
+  "_description": "Demo conversation scenarios for the Conversion Engine. Each scenario drives real interpret_reply() + route_decision() pipeline calls with kill switch active.",
+  "scenarios": [
+    {
+      "id": "arcana_skeptic",
+      "company": "Arcana Analytics",
+      "traces_dir": "traces/arcana",
+      "segment": "Segment 1 (Series A, FinTech)",
+      "description": "Skeptical signal challenge resolves to a booking. Demonstrates QUESTION → clarification → INTERESTED → SEND_CAL_LINK flow.",
+      "generate_email": true,
+      "replies": [
+        {
+          "turn": 1,
+          "from": "prospect",
+          "text": "Your hiring data looks stale — those roles were backfill, not growth. We're not scaling aggressively.",
+          "expected_intent": "QUESTION",
+          "expected_next_step": "SEND_EMAIL",
+          "note": "Signal challenge — must route to clarification, never STOP on a factual dispute."
+        },
+        {
+          "turn": 2,
+          "from": "prospect",
+          "text": "Fair point. Honestly our ML capacity has been the bottleneck for the past quarter. Let's talk.",
+          "expected_intent": "INTERESTED",
+          "expected_next_step": "SEND_CAL_LINK",
+          "note": "Self-disclosure buying signal after clarification — should immediately route to Cal link."
+        }
+      ]
+    },
+    {
+      "id": "pulsesight_sms",
+      "company": "PulseSight",
+      "traces_dir": "traces/pulsesight",
+      "segment": "Segment 1/4 (Series A, ML Infrastructure)",
+      "description": "Bench depth question followed by SMS scheduling. Demonstrates QUESTION → SEND_EMAIL, then SCHEDULE → SEND_CAL_LINK + SMS warm-lead leg.",
+      "generate_email": true,
+      "replies": [
+        {
+          "turn": 1,
+          "from": "prospect",
+          "text": "Interesting — what's your bench depth for Python ML engineers specifically? We need people who know inference pipelines.",
+          "expected_intent": "QUESTION",
+          "expected_next_step": "SEND_EMAIL",
+          "note": "Capacity/bench question — must route to SEND_EMAIL with honest bench disclosure, not SEND_CAL_LINK."
+        },
+        {
+          "turn": 2,
+          "from": "prospect",
+          "text": "Good, that bench sounds relevant. Texting is easier for me — send the scheduling link that way.",
+          "expected_intent": "SCHEDULE",
+          "expected_next_step": "SEND_CAL_LINK",
+          "also_send_sms": true,
+          "note": "Warm lead requesting SMS scheduling — triggers both email Cal link AND SMS fallback leg."
+        }
+      ]
+    },
+    {
+      "id": "novaspark_fast",
+      "company": "NovaSpark",
+      "traces_dir": "traces/novaspark",
+      "segment": "Segment 3 (leadership transition, new VP Eng)",
+      "description": "New VP Engineering reassessing vendors 60 days into role — narrow high-conversion window. Demonstrates immediate INTERESTED → SEND_CAL_LINK routing.",
+      "generate_email": true,
+      "replies": [
+        {
+          "turn": 1,
+          "from": "prospect",
+          "text": "I'm 60 days into the role and I already know we need to move fast on scaling the ML platform — our bench is thin. Let's get 30 minutes to see if there's a fit.",
+          "expected_intent": "INTERESTED",
+          "expected_next_step": "SEND_CAL_LINK",
+          "note": "Segment 3 — self-disclosure (bench is thin) + explicit scheduling ask. Should route directly to SEND_CAL_LINK."
+        }
+      ]
+    },
+    {
+      "id": "coraltech_stop",
+      "company": "CoralTech",
+      "traces_dir": "traces/coraltech",
+      "segment": "Disqualified (anti-offshore stance, B2C consumer app)",
+      "description": "ICP disqualifier fired at brief generation (anti-offshore + consumer app). Prospect confirms explicitly. Demonstrates NOT_INTERESTED → STOP with HubSpot UNQUALIFIED status.",
+      "generate_email": true,
+      "replies": [
+        {
+          "turn": 1,
+          "from": "prospect",
+          "text": "We keep all engineering in-house — this isn't relevant to us.",
+          "expected_intent": "NOT_INTERESTED",
+          "expected_next_step": "STOP",
+          "note": "Clean explicit rejection — must STOP and mark UNQUALIFIED in HubSpot. No follow-up allowed."
+        }
+      ]
+    }
+  ]
+}

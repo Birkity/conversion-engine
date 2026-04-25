@@ -1,0 +1,29 @@
+{
+  "company_name": "CoralTech",
+  "industries": ["E-commerce", "B2C", "Retail Tech"],
+  "headcount": "310",
+  "description": "CoralTech builds personalisation and search tooling for mid-market e-commerce brands. Their platform provides AI-powered product recommendations, semantic search, and A/B testing. Engineering team of ~40 is almost entirely in-house. No offshore or outsourced engineering; CEO has publicly stated preference for in-house talent.",
+  "funding_info": "Series C $45M closed June 2024. Lead investor: General Catalyst.",
+  "layoffs": "No layoff events found in last 120 days.",
+  "jobs_now": 2,
+  "jobs_60_days": 4,
+  "tech_stack": ["Node.js", "React", "TypeScript", "PostgreSQL", "Redis", "AWS", "Elasticsearch"],
+  "ai_roles": [],
+  "leadership_changes": "No leadership changes detected in last 90 days.",
+  "recent_news": "Series C $45M announced June 2024. CEO interview in Forbes: 'We will always keep AI engineering in-house — it is too strategic to outsource.'",
+  "competitor_signals": [
+    {
+      "name": "Bloomreach",
+      "funding": "Series F $175M",
+      "tech_stack": ["Java", "Python", "Kubernetes", "Elasticsearch"],
+      "ai_maturity_score": 3
+    },
+    {
+      "name": "Constructor.io",
+      "funding": "Series B $55M",
+      "tech_stack": ["Python", "Node.js", "AWS"],
+      "ai_maturity_score": 3
+    }
+  ],
+  "_policy_note": "Synthetic company. Rule 3: no real company PII included. Note: CEO anti-offshore quote is synthetic but modeled on plausible public signal — ICP disqualifier should fire."
+}

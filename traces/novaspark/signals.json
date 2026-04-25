@@ -1,0 +1,38 @@
+{
+  "company_name": "NovaSpark",
+  "industries": ["SaaS", "Cloud Infrastructure", "DevOps"],
+  "headcount": "85",
+  "description": "NovaSpark builds cloud cost-optimization and FinOps tooling for mid-market engineering teams. Their platform provides real-time spend visibility, automated rightsizing recommendations, and budget enforcement across AWS, GCP, and Azure. Series B $22M closed October 2025. New VP Engineering (Marcus Reyes, ex-AWS Principal Engineer) hired February 2026.",
+  "funding_info": "Series B $22M closed October 2025. Lead investor: Bessemer Venture Partners. Total raised: $31M.",
+  "layoffs": "No layoff events found in last 120 days.",
+  "jobs_now": 8,
+  "jobs_60_days": 5,
+  "tech_stack": ["Go", "Python", "Kubernetes", "Terraform", "AWS", "PostgreSQL", "Prometheus", "Grafana"],
+  "ai_roles": [
+    "ML Platform Engineer (open 45 days, no hire)",
+    "Senior Data Engineer — Cost Analytics (open 30 days, no hire)"
+  ],
+  "leadership_changes": "New VP Engineering Marcus Reyes hired February 2026 (ex-AWS Principal Engineer, formerly led cloud infrastructure platform team).",
+  "recent_news": "Series B $22M announced October 2025. VP Engineering hire from AWS announced January 2026. NovaSpark ranked in G2 Cloud Management top 10 Q1 2026.",
+  "competitor_signals": [
+    {
+      "name": "Harness",
+      "funding": "Series D $115M",
+      "tech_stack": ["Go", "Python", "Kubernetes", "Helm"],
+      "ai_maturity_score": 3
+    },
+    {
+      "name": "Spot.io (NetApp)",
+      "funding": "Acquired $450M",
+      "tech_stack": ["Go", "Python", "AWS", "Kubernetes"],
+      "ai_maturity_score": 2
+    },
+    {
+      "name": "Infracost",
+      "funding": "Series A $12M",
+      "tech_stack": ["Go", "Python", "Terraform"],
+      "ai_maturity_score": 2
+    }
+  ],
+  "_policy_note": "Synthetic company. All data fabricated from plausible public signals. Rule 3: no real company PII included."
+}

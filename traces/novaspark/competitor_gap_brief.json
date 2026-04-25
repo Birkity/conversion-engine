@@ -1,0 +1,17 @@
+{
+  "sector": "Cloud Cost Optimization",
+  "competitors_analyzed": 3,
+  "prospect_ai_score": 1,
+  "prospect_position_in_sector": "below_median",
+  "gaps": [
+    {
+      "practice": "AI-driven automation",
+      "evidence_in_top_quartile": "Harness and Spot.io demonstrate advanced AI-driven automation features.",
+      "evidence_at_prospect": "NovaSpark has open roles in ML but lacks public evidence of deployed AI automation.",
+      "gap_insight": "Competitors are further ahead in deploying AI-driven automation for cloud cost optimization.",
+      "confidence": 0.7
+    }
+  ],
+  "overall_confidence": 0.75,
+  "tenacious_status": "draft"
+}

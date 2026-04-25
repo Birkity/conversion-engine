@@ -4,12 +4,12 @@
     "direction": "accelerating",
     "delta_pct": 133.33,
     "signal_strength": "strong",
-    "observation": "Job postings have increased significantly in the last 60 days, suggesting an acceleration in hiring."
+    "observation": "PulseSight's open job postings have increased significantly in the last 60 days, suggesting an acceleration in hiring."
   },
   "budget_urgency": {
     "level": "high",
     "signal": "Series A $9M",
-    "runway_pressure": "Recent Series A funding suggests available budget for strategic hires."
+    "runway_pressure": "Recent Series A funding may indicate a need to rapidly scale the team."
   },
   "cost_pressure": {
     "present": false,
@@ -17,7 +17,7 @@
     "icp_segment_implication": null
   },
   "engineering_maturity": {
-    "stack_sophistication": "high",
+    "stack_sophistication": "medium",
     "detected_stack": [
       "Python",
       "FastAPI",
@@ -27,7 +27,7 @@
       "ClickHouse",
       "Kafka"
     ],
-    "bench_match_notes": "Modern stack aligns with Tenacious capabilities."
+    "bench_match_notes": "The stack aligns with available bench capabilities."
   },
   "ai_maturity_score": 2,
   "ai_maturity_rationale": {
@@ -36,12 +36,12 @@
       "Senior Backend Engineer \u2014 ML Platform"
     ],
     "modern_ml_stack_signals": [],
-    "executive_ai_signals": "moderate",
+    "executive_ai_signals": "none",
     "named_ai_leadership": false
   },
-  "confidence": 0.9,
+  "confidence": 0.85,
   "icp_segment": "Segment 1",
-  "recommended_pitch_angle": "Tenacious can help PulseSight scale its ML platform with our expertise in Python, FastAPI, and Kubernetes.",
+  "recommended_pitch_angle": "Tenacious can help PulseSight scale its engineering team quickly to capitalize on its recent funding and address the ML infrastructure market.",
   "bench_match": {
     "required_stacks": [
       "python",

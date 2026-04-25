@@ -1,0 +1,59 @@
+{
+  "company": "NovaSpark",
+  "hiring_velocity": {
+    "direction": "accelerating",
+    "delta_pct": 60.0,
+    "signal_strength": "moderate",
+    "observation": "NovaSpark's open roles have increased by 60% in the last 60 days, suggesting increased hiring activity."
+  },
+  "budget_urgency": {
+    "level": "high",
+    "signal": "Series B $22M",
+    "runway_pressure": "Recent Series B funding may indicate available budget for strategic engineering initiatives."
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": null
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "high",
+    "detected_stack": [
+      "Go",
+      "Python",
+      "Kubernetes",
+      "Terraform",
+      "AWS",
+      "PostgreSQL",
+      "Prometheus",
+      "Grafana"
+    ],
+    "bench_match_notes": "Modern DevOps stack aligns with Tenacious infra and python bench."
+  },
+  "ai_maturity_score": 1,
+  "ai_maturity_rationale": {
+    "ai_roles_found": [
+      "ML Platform Engineer",
+      "Senior Data Engineer \u2014 Cost Analytics"
+    ],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "none",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.85,
+  "icp_segment": "Segment 1",
+  "recommended_pitch_angle": "Tenacious can augment NovaSpark's ML platform engineering to accelerate cost analytics capabilities.",
+  "bench_match": {
+    "required_stacks": [
+      "ml",
+      "infra",
+      "python"
+    ],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": false,
+    "bench_gap_detected": false
+  },
+  "tenacious_status": "draft"
+}

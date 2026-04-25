@@ -1,0 +1,231 @@
+[
+  {
+    "scenario_id": "arcana_skeptic",
+    "company": "Arcana Analytics",
+    "segment": "Segment 1 (Series A, FinTech)",
+    "description": "Skeptical signal challenge resolves to a booking. Demonstrates QUESTION \u2192 clarification \u2192 INTERESTED \u2192 SEND_CAL_LINK flow.",
+    "conversation": [
+      {
+        "turn": 0,
+        "from": "agent",
+        "type": "outbound_email",
+        "subject": "Context: Series A $14M closed March 2026",
+        "body": "Jordan,\n\nArcana Analytics has doubled its open job postings in the last 60 days.\n\nCompanies scaling after a Series A often face bottlenecks integrating new engineers.\n\nTenacious can augment your ML engineering team to accelerate your AI-first credit intelligence layer.\n\nWhat challenges are you facing scaling your team post-funding?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 1,
+        "from": "prospect",
+        "reply_text": "Your hiring data looks stale \u2014 those roles were backfill, not growth. We're not scaling aggressively.",
+        "expected_intent": "QUESTION",
+        "expected_next_step": "SEND_EMAIL",
+        "interpretation": {
+          "intent": "QUESTION",
+          "next_step": "SEND_EMAIL",
+          "confidence": 0.9,
+          "reasoning": "The prospect is challenging the accuracy of our hiring data, stating that the roles were backfill and not for growth. This is a direct challenge to a specific claim in our email, indicating a need for clarification.",
+          "grounding_facts_used": [
+            "Arcana Analytics has doubled its open job postings in the last 60 days, suggesting an increase in hiring activity.",
+            "Series A $14M closed March 2026"
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476267124473",
+            "hubspot_status_updated: IN_PROGRESS",
+            "clarification_sent: sent"
+          ],
+          "errors": [],
+          "cal_link": null
+        },
+        "sms_sent": false
+      },
+      {
+        "turn": 2,
+        "from": "prospect",
+        "reply_text": "Fair point. Honestly our ML capacity has been the bottleneck for the past quarter. Let's talk.",
+        "expected_intent": "INTERESTED",
+        "expected_next_step": "SEND_CAL_LINK",
+        "interpretation": {
+          "intent": "INTERESTED",
+          "next_step": "SEND_CAL_LINK",
+          "confidence": 0.95,
+          "reasoning": "The prospect acknowledges a bottleneck in their ML capacity, which directly aligns with our offer to augment their ML engineering team. The phrase \"Let's talk\" indicates a clear interest in discussing our services further.",
+          "grounding_facts_used": [
+            "Arcana Analytics AI Maturity Score: 2/3",
+            "Recommended Pitch: Tenacious can augment Arcana Analytics' ML engineering team to accelerate the development of their AI-first credit intelligence layer.",
+            "Budget Urgency: high \u2014 Series A $14M closed March 2026"
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476267124473",
+            "hubspot_status_updated: IN_PROGRESS",
+            "cal_link_sent: sent"
+          ],
+          "errors": [],
+          "cal_link": "https://cal.com/birkity-famsl2/intro-call-engineering-scaling?name=Jordan+Osei&email=jordan.osei%40sink.example.com&notes=Tenacious+can+augment+Arcana+Analytics%27+ML+engineering+team+to+accelerate+the+development+of+their+AI-first+credit+intelligence+layer."
+        },
+        "sms_sent": false
+      }
+    ],
+    "ran_at": "2026-04-25T12:32:09.866961+00:00"
+  },
+  {
+    "scenario_id": "pulsesight_sms",
+    "company": "PulseSight",
+    "segment": "Segment 1/4 (Series A, ML Infrastructure)",
+    "description": "Bench depth question followed by SMS scheduling. Demonstrates QUESTION \u2192 SEND_EMAIL, then SCHEDULE \u2192 SEND_CAL_LINK + SMS warm-lead leg.",
+    "conversation": [
+      {
+        "turn": 0,
+        "from": "agent",
+        "type": "outbound_email",
+        "subject": "Context: Series A $9M",
+        "body": "Jordan,\n\nPulseSight recently closed a Series A round of $9M.\nCompanies in this position often need to quickly scale their machine learning infrastructure.\nTenacious provides engineers who are ready to contribute to your Python, FastAPI, and Kubernetes environment.\nWhat are your biggest bottlenecks to scaling the platform right now?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 1,
+        "from": "prospect",
+        "reply_text": "Interesting \u2014 what's your bench depth for Python ML engineers specifically? We need people who know inference pipelines.",
+        "expected_intent": "QUESTION",
+        "expected_next_step": "SEND_EMAIL",
+        "interpretation": {
+          "intent": "QUESTION",
+          "next_step": "SEND_EMAIL",
+          "confidence": 0.9,
+          "reasoning": "The prospect is asking a specific question about our bench depth for Python ML engineers with experience in inference pipelines. This is a request for clarification on our capabilities.",
+          "grounding_facts_used": [
+            "PulseSight recently closed a Series A round of $9M.",
+            "Tenacious provides engineers who are ready to contribute to your Python, FastAPI, and Kubernetes environment."
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476700037876",
+            "hubspot_status_updated: IN_PROGRESS",
+            "clarification_sent: sent"
+          ],
+          "errors": [],
+          "cal_link": null
+        },
+        "sms_sent": false
+      },
+      {
+        "turn": 2,
+        "from": "prospect",
+        "reply_text": "Good, that bench sounds relevant. Texting is easier for me \u2014 send the scheduling link that way.",
+        "expected_intent": "SCHEDULE",
+        "expected_next_step": "SEND_CAL_LINK",
+        "interpretation": {
+          "intent": "INTERESTED",
+          "next_step": "SEND_CAL_LINK",
+          "confidence": 0.95,
+          "reasoning": "The prospect explicitly states \"that bench sounds relevant\", indicating a positive signal and alignment with our services. This constitutes self-disclosure and implicit interest, as they acknowledge the relevance of our offering to their needs.",
+          "grounding_facts_used": [
+            "PulseSight's open job postings have increased significantly in the last 60 days, suggesting an acceleration in hiring.",
+            "Tenacious can help PulseSight scale its engineering team quickly to capitalize on its recent funding and address the ML infrastructure market."
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476700037876",
+            "hubspot_status_updated: IN_PROGRESS",
+            "cal_link_sent: sent"
+          ],
+          "errors": [],
+          "cal_link": "https://cal.com/birkity-famsl2/intro-call-engineering-scaling?name=Jordan+Kim&email=jordan.kim%40sink.example.com&notes=Tenacious+can+help+PulseSight+scale+its+engineering+team+quickly+to+capitalize+on+its+recent+funding+and+address+the+ML+infrastructure+market."
+        },
+        "sms_sent": true
+      }
+    ],
+    "ran_at": "2026-04-25T12:33:07.038044+00:00"
+  },
+  {
+    "scenario_id": "novaspark_fast",
+    "company": "NovaSpark",
+    "segment": "Segment 3 (leadership transition, new VP Eng)",
+    "description": "New VP Engineering reassessing vendors 60 days into role \u2014 narrow high-conversion window. Demonstrates immediate INTERESTED \u2192 SEND_CAL_LINK routing.",
+    "conversation": [
+      {
+        "turn": 0,
+        "from": "agent",
+        "type": "outbound_email",
+        "subject": "Context: Series B $22M",
+        "body": "Marcus,\n\nNovaSpark's open roles have increased 60% in the last 60 days.\n\nCompanies at this stage often need to accelerate their ML platform to keep pace.\n\nTenacious can augment your ML platform engineering to accelerate cost analytics capabilities.\n\nWhat's your biggest bottleneck to scaling the platform right now?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 1,
+        "from": "prospect",
+        "reply_text": "I'm 60 days into the role and I already know we need to move fast on scaling the ML platform \u2014 our bench is thin. Let's get 30 minutes to see if there's a fit.",
+        "expected_intent": "INTERESTED",
+        "expected_next_step": "SEND_CAL_LINK",
+        "interpretation": {
+          "intent": "INTERESTED",
+          "next_step": "SEND_CAL_LINK",
+          "confidence": 1.0,
+          "reasoning": "Marcus explicitly states they need to move fast on scaling the ML platform and their bench is thin, which confirms the problem we identified. He then asks for 30 minutes to see if there's a fit, indicating interest in our services.",
+          "grounding_facts_used": [
+            "NovaSpark's open roles have increased by 60% in the last 60 days.",
+            "AI Maturity Score: 1/3",
+            "Tenacious can augment NovaSpark's ML platform engineering to accelerate cost analytics capabilities."
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476887003862",
+            "hubspot_status_updated: IN_PROGRESS",
+            "cal_link_sent: sent"
+          ],
+          "errors": [],
+          "cal_link": "https://cal.com/birkity-famsl2/intro-call-engineering-scaling?name=Marcus+Reyes&email=marcus.reyes%40sink.example.com&notes=Tenacious+can+augment+NovaSpark%27s+ML+platform+engineering+to+accelerate+cost+analytics+capabilities."
+        },
+        "sms_sent": false
+      }
+    ],
+    "ran_at": "2026-04-25T12:34:27.483162+00:00"
+  },
+  {
+    "scenario_id": "coraltech_stop",
+    "company": "CoralTech",
+    "segment": "Disqualified (anti-offshore stance, B2C consumer app)",
+    "description": "ICP disqualifier fired at brief generation (anti-offshore + consumer app). Prospect confirms explicitly. Demonstrates NOT_INTERESTED \u2192 STOP with HubSpot UNQUALIFIED status.",
+    "conversation": [
+      {
+        "turn": 0,
+        "from": "agent",
+        "type": "outbound_email",
+        "subject": "Context: Series C $45M",
+        "body": "Diane,\n\nCoralTech closed a $45M Series C round.\n\nCompanies often struggle to translate funding into deployed AI/ML personalization.\n\nTenacious provides pre-vetted AI/ML engineers available on demand.\n\nHow are you prioritizing AI/ML engineering talent given your personalization roadmap?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 1,
+        "from": "prospect",
+        "reply_text": "We keep all engineering in-house \u2014 this isn't relevant to us.",
+        "expected_intent": "NOT_INTERESTED",
+        "expected_next_step": "STOP",
+        "interpretation": {
+          "intent": "NOT_INTERESTED",
+          "next_step": "STOP",
+          "confidence": 1.0,
+          "reasoning": "Diane explicitly states \"We keep all engineering in-house \u2014 this isn't relevant to us.\" This is a clear rejection of our services.",
+          "grounding_facts_used": [
+            "CoralTech closed a $45M Series C round.",
+            "AI Maturity Score: 0/3",
+            "Hiring Velocity: decelerating (-50.0% delta, moderate signal)"
+          ]
+        },
+        "routing": {
+          "actions": [
+            "hubspot_note_added: contact_id=476902946499",
+            "hubspot_status_updated: UNQUALIFIED",
+            "outreach_stopped: prospect not interested"
+          ],
+          "errors": [],
+          "cal_link": null
+        },
+        "sms_sent": false
+      }
+    ],
+    "ran_at": "2026-04-25T12:34:50.392618+00:00"
+  }
+]
