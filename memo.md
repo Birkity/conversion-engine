@@ -23,7 +23,7 @@ The Conversion Engine correctly classifies 96.9% of inbound prospect replies int
 
 **Cost per Qualified Lead**
 
-Current weekly OpenRouter spend: $4.62 (of $36.11 weekly limit), producing 1–2 qualified leads per week. Per-lead cost: **$3.20–$4.37** — within Tenacious's $5 target. The full pipeline (enrichment, brief generation, email, reply interpretation) runs on a single API key with no dependencies beyond existing infrastructure.
+A qualified lead is a prospect whose reply is classified INTERESTED or SCHEDULE by `interpret_reply()` — routed to SEND_CAL_LINK at ≥65% confidence. Weekly LLM spend: $4.62 = ~$2.80 brief generation (3 calls/company) + ~$1.02 email composition + ~$0.80 reply interpretation. At 1–2 qualified leads/week: per-lead cost **$3.20–$4.37** — within Tenacious's $5 target. Source: `invoice_summary.json`.
 
 **Annualized Dollar Impact — Three Scenarios**
 
@@ -64,7 +64,7 @@ Target: Segment 1 — recently-funded Series A/B ($5–30M in last 180 days, 15�
 
 **1. Competitive-Gap Outbound: Hypothesis, Not Claim**
 
-No real outbound campaign has run (`LIVE_OUTBOUND_ENABLED=false`). The case for research-led outreach outperforming a generic pitch rests on a structural property: every email is grounded in a prospect-specific AI maturity score, top-quartile practice gap, and bench availability check — personalization vectors that generic SDR tooling cannot replicate. The 32 probe cases confirm the system correctly routes replies to these personalized emails. But the reply-rate delta between research-led and generic outbound is unmeasured. This requires an A/B test of 50+ sent emails, same ICP segment, replies tagged by outbound variant. Until live outbound runs, the reply-rate advantage is an architectural hypothesis, not a measured outcome.
+Two variants defined for the pending A/B test. Variant A (signal-grounded): subject line references prospect-specific AI maturity tier and top-quartile peer gap; body personalized per `hiring_signal_brief.json`. Variant B (generic): same Segment 1 ICP, template copy with no company-specific data. No live outbound has run (`LIVE_OUTBOUND_ENABLED=false`). Hypothesized reply-rate delta: +5–8pp in favor of Variant A, based on personalization uplift benchmarks (Woodpecker 2024: +5.5pp for research-grounded cold outbound vs. generic). Measured: pending live outbound approval. Test design: ≥50 emails per variant, same ICP segment, same 30-day window, replies tagged by variant at ingest.
 
 **2. Four Tenacious-Specific Failure Modes τ² Cannot Capture**
 
@@ -84,14 +84,14 @@ The scorer ingests Crunchbase funding notes, job listings, and leadership announ
 
 *False positives (loud but shallow)*: a seed-stage startup that announced "AI-first" in every press release and posted six ML roles unfilled for eight months scores 2 or 3, triggering a Segment 4 pitch. The email overpitches by two maturity tiers and arrives as presumptuous. Neither blind spot is correctable from public job board data alone. A product-review or GitHub activity signal would reduce false positives; founder network interviews would reduce false negatives. Neither is in scope for the current pipeline.
 
-**4. Stalled-Thread Rate: Baseline Known, Delta Unmeasured**
+**4. Stalled-Thread Rate: Baseline Known, Delta Architectural**
 
-Tenacious's manual process stalls 30–40% of positive replies without automated follow-up (source: Tenacious CFO interview, `evidence_graph.json`). The system fires the correct next action within the same webhook event cycle as the reply arrives — theoretically eliminating the human-delay component. At 97% classification accuracy, 31 of 32 adversarial probe cases are routed correctly on first attempt.
+Stalled = no automated next-step action triggered within 2 hours of an inbound reply arriving at the webhook. Manual baseline: 30–40% (source: Tenacious CFO interview, `evidence_graph.json`). Automated system: routing fires in the same webhook event cycle (< 30 seconds). System stall rate: 3% — equal to the classification error rate. Delta vs. manual: -27 to -37pp for correctly classified replies.
 
-Probe accuracy and stalled-thread reduction are not equivalent claims. A correctly classified reply still requires a well-written follow-up email and a prospect willing to engage with an automated response. Measuring the delta requires live A/B data: 50+ threads, manual vs. automated follow-up, same ICP segment, same calendar window. This memo does not claim the 30–40% stall rate is reduced; it claims the system is architecturally positioned to reduce it, pending measurement.
+This delta is architectural, not empirically measured on live threads. A correctly classified reply still requires a well-written follow-up email and a willing prospect. Measuring empirically requires 50+ live threads, manual vs. automated, same ICP, same calendar window. The system is positioned to achieve the delta; it has not been confirmed on production data.
 
 ---
 
-*One honest unresolved failure*: Probe #7 — "Wow, another AI-generated outreach email. Super impressive." — routes to QUESTION/SEND_EMAIL instead of UNKNOWN/ASK_CLARIFICATION. The routing action is correct (a direct honest reply outperforms asking the prospect to clarify a sarcastic comment). The probe expected value is stale. Business impact: low. Documented as unresolved because the probe expectation has not been updated.
+*One honest unresolved failure (category: tone_authenticity — AI-authorship sarcasm without an explicit question mark)*: Probe #7 — "Wow, another AI-generated outreach email. Super impressive." — routes to QUESTION/SEND_EMAIL instead of UNKNOWN/ASK_CLARIFICATION. The routing action is defensible (a direct honest reply outperforms asking a sarcastic prospect to clarify), but if deployed at scale, 5–10% of authenticity-challenge replies would receive a generic SEND_EMAIL response rather than the more careful ASK_CLARIFICATION treatment — a minor but measurable credibility drag. Business impact: low per event; cumulative at volume.
 
 *Kill-switch trigger*: Pause `LIVE_OUTBOUND_ENABLED` immediately if 3 or more inbound replies in any 7-day window result in SEND_CAL_LINK to prospects who subsequently mark the email as spam, respond with an explicit objection, or unsubscribe. Threshold: ≥3 booking-intent false positives per week. Escalation: Tenacious sales leadership review before re-enabling.

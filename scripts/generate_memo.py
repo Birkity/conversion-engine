@@ -39,7 +39,7 @@ SEP_H  = 1.5    # separator line height
 
 
 _UNICODE_MAP = str.maketrans({
-    "—": "--",   # em dash
+    "—": " - ",  # em dash
     "–": "-",    # en dash
     "’": "'",    # right single quote
     "‘": "'",    # left single quote
