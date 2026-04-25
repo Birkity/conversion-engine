@@ -54,6 +54,21 @@ def send(to: str, message: str, warm_lead: bool = False) -> dict:
         return {"status": "error", "error": str(exc), "to": actual_to}
 
 
+def send_booking_link_sms(to: str, prospect_name: str, cal_url: str) -> dict:
+    """
+    Send a Cal.com booking link to a warm lead via SMS.
+
+    This is the SMS leg of the SCHEDULE → SEND_CAL_LINK routing path:
+      interpret_reply() returns SCHEDULE → route_decision() calls send_booking_link_sms()
+      → prospect receives Cal.com link by text → books a discovery call.
+
+    Always routed to AT_SMOKE_TEST_PHONE when LIVE_OUTBOUND_ENABLED=false.
+    """
+    first_name = prospect_name.split()[0] if prospect_name else "there"
+    msg = f"Hi {first_name}, here's the scheduling link to book a discovery call: {cal_url}"
+    return send(to, msg, warm_lead=True)
+
+
 def send_nurture_sms(to: str, prospect_name: str, company: str, pitch_angle: str) -> dict:
     """Send a signal-grounded nurture SMS to a confirmed warm lead."""
     msg = (

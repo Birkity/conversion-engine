@@ -549,6 +549,7 @@ Intent → next_step mapping is deterministic (enforced at the router level):
 
 **Self-disclosure buying signals → INTERESTED:**
 A prospect admitting a gap in the domain being pitched counts as an implicit "yes, relevant":
+
 - "our AI team is not great right now" → INTERESTED → SEND_CAL_LINK
 - "we're definitely behind our competitors on AI" → INTERESTED → SEND_CAL_LINK
 
@@ -601,3 +602,27 @@ A full data-leakage audit was run against the committed repository. Findings and
 | `policy/acknowledgement_signed.txt` contains full name | Check | **Intentional** — signed policy acknowledgement required by the programme. |
 
 **Verdict (updated April 24, 2026):** No credentials, personal contact data, or real prospect PII are committed to the repository. `.env` and `seeds/` are gitignored and have never been tracked by git — audit tool false positives that scanned the local filesystem rather than git-tracked files. One medium-severity hardcoded email default was found and fixed (April 23). The `@sink.trp1.internal` email domain used in early `prospect_info.json` files was changed to `@sink.example.com` after HubSpot rejected the `.internal` TLD — both are RFC-reserved non-routable domains; the change is a technical fix, not a policy violation.
+
+---
+
+## Known Limitations and Next Steps
+
+### Known limitations (scope boundaries for this submission)
+
+| Limitation | Detail | Mitigation in place |
+| --- | --- | --- |
+| Single-turn reply interpretation | `interpret_reply()` processes one reply at a time with no memory of previous turns; context is passed manually via `last_email` dict | `demo_runner.py` updates `last_email` between turns to simulate multi-turn context |
+| GitHub activity signal not fetched live | `maturity.score(github_stars=...)` accepts the signal but `pipeline.py` does not yet call a GitHub API — caller must pass stars from pre-fetched data | `github_stars` defaults to 0 (conservative); signal fires only when explicitly supplied |
+| Competitor selection limited to primary industry | `_find_sector_peers()` matches on the first industry label only; companies with niche sub-sectors may get sparse or zero peers | Sparse-sector warning added to LLM context when `<5` peers found |
+| Africa's Talking sandbox SSL instability | AT sandbox API occasionally returns `WRONG_VERSION_NUMBER` SSL errors in the test environment; SMS delivery to the smoke-test sink is not guaranteed | `send()` returns `{status: "error"}` dict; demo log records `prospect_phone_contacted: false` — no prospect is ever affected |
+| HubSpot sandbox custom properties | Five custom contact properties must be manually created in a fresh HubSpot sandbox before the first upsert | Documented in README; `hubspot_smoketest.py` verifies all five properties exist |
+| No email reply threading | Inbound email replies are logged via Resend webhook but the system does not thread replies into a conversation; each reply is processed independently | Sufficient for demo scope; threading would require a reply-ID store |
+| τ²-Bench domain mismatch | Baseline uses the `retail` domain (closest available); Tenacious is a B2B consulting context — domain transfer validity is limited | Score reported as a proxy for agent task-completion capability, not domain-specific accuracy |
+
+### Recommended next steps (post-submission)
+
+1. **Live GitHub signal fetch** — add a `github.py` enrichment module that calls the GitHub Search API for the company's top public repo star count and passes it to `maturity.score(github_stars=...)`.
+2. **Reply threading** — store `Message-ID` headers from outbound emails; match inbound Resend webhook events by `In-Reply-To` to build conversation threads instead of independent interpretations.
+3. **Multi-industry competitor matching** — extend `_find_sector_peers()` to match on any of the prospect's listed industries (not just the first) and de-duplicate; improves sector coverage for fintech/ML crossover companies.
+4. **Probe suite expansion** — add 8–10 probes covering multi-turn context shifts (e.g., prospect re-engages after a NOT_INTERESTED reply) and bench-gap edge cases where stack partially matches.
+5. **Handoff to Tenacious sales team** — replace `tenacious_status="draft"` with a human-review queue: when `route_decision()` fires `SEND_CAL_LINK`, create a HubSpot task assigned to the responsible consultant for approval before the Cal link is dispatched.

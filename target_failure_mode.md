@@ -141,6 +141,47 @@ Fixed in Run 2 by adding to `NOT_INTERESTED` definition: `"your data was wrong"`
 
 ---
 
+## Why tone_drift was selected over alternative candidates
+
+Three failure modes were candidates for the primary target. The final choice was `tone_drift` (self-disclosure misclassification). The two runner-up candidates are documented here for comparison.
+
+### Candidate A: `bench_over_commit` — Stack-mismatch booking prevention
+
+**What it was:** The router was sending Cal.com booking links for companies whose required stack (e.g. NestJS) was not available on the Tenacious bench (committed through Q3 2026). This would book a discovery call that the sales team would have to cancel or walk back.
+
+**Trigger rate in probes:** 2/6 bench probes (33%) triggered false-positive bookings.
+
+**Estimated cost per event:** Each mis-booked discovery call costs the sales team 30–60 minutes of prep + the call itself + a cancel/reschedule conversation with the prospect. Estimated: 2–3 hours per event. At 1,000 contacts → ~8 bench-gap events → ~16–24 hours of wasted consultant time.
+
+**Why it lost to tone_drift:**
+
+- `bench_over_commit` was partially mitigated by the existing `bench_match.bench_available` field in the brief. The fix was a single guard check in `_action_send_cal_link()` — 3 lines of code, no prompt change needed.
+- `tone_drift` required a new classifier rule category, a prompt rewrite, and had 3× the trigger rate (0/3 vs 2/6 probes) at a higher business-impact event (lost warm lead vs. wasted call prep).
+- `bench_over_commit` was fixed as a **supplementary** action during the primary fix (see "Router hardening" below).
+
+**ROI comparison:** tone_drift fix recovers $3,000–4,000 delayed/lost pipeline per 1,000 contacts. bench_over_commit fix saves 16–24 hrs wasted consultant time per 1,000 contacts (~$1,600–2,400 at $100/hr). tone_drift had ~1.5–2× ROI.
+
+---
+
+### Candidate B: `scheduling_ambiguity` — Qualified date mis-routing
+
+**What it was:** Replies containing soft or qualified scheduling language ("maybe June 30th", "possibly next week") were sometimes classified as `SCHEDULE → SEND_CAL_LINK` instead of `UNKNOWN → ASK_CLARIFICATION`. This sent a booking link to a prospect who had not committed, creating premature pressure.
+
+**Trigger rate in probes:** 1/4 scheduling probes (25%) mis-classified.
+
+**Estimated cost per event:** Premature booking link to an uncommitted prospect has moderate churn risk (~15% of recipients ignore the link after receiving it prematurely, vs ~5% when the link arrives post-commitment). At 1,000 contacts → ~3 premature links → ~0.45 additional no-show meetings.
+
+**Why it lost to tone_drift:**
+
+- Trigger rate was 25% vs. tone_drift's 100% (0/3 probes failed completely).
+- Business cost per event was low (a no-show booking vs. a lost warm lead).
+- The fix was low-confidence: the boundary between "soft yes" and "uncommitted maybe" is inherently ambiguous, and a tighter rule risked under-classifying genuine SCHEDULE replies.
+- `tone_drift` had a clearer, more defensible fix boundary — negative self-assessment language maps directly to "implicit yes" with minimal false-positive risk.
+
+**ROI comparison:** scheduling_ambiguity fix might prevent 0.45 additional no-shows per 1,000 contacts — negligible. tone_drift fix recovers 8–9 delayed bookings per 1,000 contacts — 18–20× higher impact.
+
+---
+
 ## Router hardening (Act IV supplement)
 
 In addition to the classifier fix, the reply router was hardened:
