@@ -1,0 +1,24 @@
+{
+  "sector": "E-commerce Personalization",
+  "competitors_analyzed": 2,
+  "prospect_ai_score": 0,
+  "prospect_position_in_sector": "bottom_quartile",
+  "gaps": [
+    {
+      "practice": "Dedicated AI/ML Engineering",
+      "evidence_in_top_quartile": "Competitors Bloomreach and Constructor.io both have dedicated AI/ML engineering teams.",
+      "evidence_at_prospect": "CoralTech does not appear to have any dedicated AI/ML engineering roles currently open.",
+      "gap_insight": "Competitors are investing in dedicated AI/ML engineering teams, while CoralTech's current team structure is unknown.",
+      "confidence": 0.7
+    },
+    {
+      "practice": "Modern ML Stack",
+      "evidence_in_top_quartile": "Competitors Bloomreach and Constructor.io leverage Python and modern ML tools.",
+      "evidence_at_prospect": "CoralTech's detected stack does not include common ML tools.",
+      "gap_insight": "Competitors are leveraging modern ML stacks, while CoralTech's stack is focused on web application development.",
+      "confidence": 0.6
+    }
+  ],
+  "overall_confidence": 0.65,
+  "tenacious_status": "draft"
+}

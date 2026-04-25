@@ -1,0 +1,51 @@
+{
+  "company": "CoralTech",
+  "hiring_velocity": {
+    "direction": "decelerating",
+    "delta_pct": -50.0,
+    "signal_strength": "moderate",
+    "observation": "Job postings have decreased in the last 60 days, suggesting a potential slowdown in hiring."
+  },
+  "budget_urgency": {
+    "level": "high",
+    "signal": "Series C $45M",
+    "runway_pressure": "Recent Series C funding suggests available budget for strategic initiatives."
+  },
+  "cost_pressure": {
+    "present": false,
+    "signal": null,
+    "icp_segment_implication": null
+  },
+  "engineering_maturity": {
+    "stack_sophistication": "medium",
+    "detected_stack": [
+      "Node.js",
+      "React",
+      "TypeScript",
+      "PostgreSQL",
+      "Redis",
+      "AWS",
+      "Elasticsearch"
+    ],
+    "bench_match_notes": "Modern web stack is well-supported by the bench."
+  },
+  "ai_maturity_score": 0,
+  "ai_maturity_rationale": {
+    "ai_roles_found": [],
+    "modern_ml_stack_signals": [],
+    "executive_ai_signals": "none",
+    "named_ai_leadership": false
+  },
+  "confidence": 0.75,
+  "icp_segment": "ambiguous",
+  "recommended_pitch_angle": "Explore how Tenacious can augment CoralTech's in-house AI capabilities to accelerate their personalization roadmap.",
+  "bench_match": {
+    "required_stacks": [],
+    "bench_available": true
+  },
+  "honesty_flags": {
+    "weak_hiring_velocity_signal": false,
+    "bench_gap_detected": false
+  },
+  "tenacious_status": "draft"
+}

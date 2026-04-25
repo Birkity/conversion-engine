@@ -1,0 +1,154 @@
+{
+  "_description": "Maps every numeric claim used in Act IV deliverables to its authoritative source file and field path. Use this to verify any figure before citing it.",
+  "claims": {
+    "tau2_bench_pass_at_1": {
+      "value": 0.7267,
+      "source_file": "score_log.json",
+      "source_field": "pass_at_1",
+      "unit": "proportion (0–1)",
+      "notes": "τ²-Bench retail domain baseline. Not re-run in Act IV — score_log.json is the graded reference."
+    },
+    "tau2_bench_ci_95_lower": {
+      "value": 0.6504,
+      "source_file": "score_log.json",
+      "source_field": "pass_at_1_ci_95[0]",
+      "unit": "proportion"
+    },
+    "tau2_bench_ci_95_upper": {
+      "value": 0.7917,
+      "source_file": "score_log.json",
+      "source_field": "pass_at_1_ci_95[1]",
+      "unit": "proportion"
+    },
+    "tau2_bench_evaluated_simulations": {
+      "value": 150,
+      "source_file": "score_log.json",
+      "source_field": "evaluated_simulations"
+    },
+    "tau2_bench_total_tasks": {
+      "value": 30,
+      "source_file": "score_log.json",
+      "source_field": "total_tasks"
+    },
+    "tau2_bench_avg_agent_cost_usd": {
+      "value": 0.0199,
+      "source_file": "score_log.json",
+      "source_field": "avg_agent_cost",
+      "unit": "USD per simulation"
+    },
+    "tau2_bench_p50_latency_s": {
+      "value": 105.9521,
+      "source_file": "score_log.json",
+      "source_field": "p50_latency_seconds"
+    },
+    "tau2_bench_p95_latency_s": {
+      "value": 551.6491,
+      "source_file": "score_log.json",
+      "source_field": "p95_latency_seconds"
+    },
+    "probe_pass_rate_day1": {
+      "value": 0.75,
+      "passed": 24,
+      "total": 32,
+      "source_file": "probes/probe_results.json",
+      "source_field": "passed (Run 1 entries)",
+      "notes": "Day-1 baseline before any Act III prompt fixes."
+    },
+    "probe_pass_rate_run2": {
+      "value": 0.969,
+      "passed": 31,
+      "total": 32,
+      "source_file": "probes/probe_results.json",
+      "source_field": "passed (Run 2 entries, post-Act III fix)",
+      "notes": "Run 2 results after Act III prompt engineering. Recorded in probe_results.json."
+    },
+    "probe_pass_rate_act4": {
+      "value": 0.969,
+      "passed": 31,
+      "total": 32,
+      "source_file": "probes/act4_results.json",
+      "source_field": "passed",
+      "notes": "Act IV run result with retry logic. 1 failure is probe #7 (documented label mismatch, correct routing). Retry logic resolved all prior LLM truncation errors."
+    },
+    "probe_pass_rate_act4_ci_95_lower": {
+      "value": 0.838,
+      "source_file": "ablation_results.json",
+      "source_field": "conditions.act4_method.ci_95[0]",
+      "notes": "Wilson score 95% CI, computed from 31/32."
+    },
+    "probe_pass_rate_act4_ci_95_upper": {
+      "value": 0.999,
+      "source_file": "ablation_results.json",
+      "source_field": "conditions.act4_method.ci_95[1]"
+    },
+    "delta_a_pp": {
+      "value": 21.9,
+      "source_file": "ablation_results.json",
+      "source_field": "delta_a.value_pp",
+      "unit": "percentage points",
+      "notes": "act4_method (96.9%) − day1_baseline (75.0%)"
+    },
+    "delta_a_z_statistic": {
+      "value": 2.517,
+      "source_file": "ablation_results.json",
+      "source_field": "delta_a.z_statistic",
+      "notes": "One-tailed two-proportion z-test."
+    },
+    "delta_a_p_value": {
+      "value": 0.006,
+      "source_file": "ablation_results.json",
+      "source_field": "delta_a.p_value",
+      "notes": "p = 0.006, well below alpha=0.05. Significant."
+    },
+    "weekly_openrouter_spend_usd": {
+      "value": 4.62,
+      "source_file": "baseline.md",
+      "source_field": "OpenRouter API usage (queried 2026-04-24)",
+      "notes": "$4.62 used of $36.11 weekly limit as of 2026-04-24."
+    },
+    "stalled_thread_rate_manual_lower": {
+      "value": 0.30,
+      "source_file": "TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md",
+      "source_field": "Tenacious CFO interview — stalled reply rate",
+      "notes": "30–40% of positive replies result in stalled threads without automated follow-up (manual baseline)."
+    },
+    "stalled_thread_rate_manual_upper": {
+      "value": 0.40,
+      "source_file": "TRP1 Challenge Week 10_ Conversion Engine for Sales Automation.md",
+      "source_field": "Tenacious CFO interview — stalled reply rate"
+    },
+    "cost_per_qualified_lead_lower_usd": {
+      "value": 3.20,
+      "source_file": "baseline.md",
+      "source_field": "Cost per qualified lead (low estimate)",
+      "notes": "$3.20–$4.37 per qualified lead based on $4.62/week spend and 1–2 qualified leads per week estimate."
+    },
+    "cost_per_qualified_lead_upper_usd": {
+      "value": 4.37,
+      "source_file": "baseline.md",
+      "source_field": "Cost per qualified lead (high estimate)"
+    },
+    "series_a_funding_arcana_usd": {
+      "value": 14000000,
+      "source_file": "traces/arcana/hiring_signal_brief.json",
+      "source_field": "funding.amount or equivalent",
+      "notes": "Used as grounding fact in probe suite. '$14M Series A, March 2026' appears in briefs and last_email."
+    },
+    "probe_count_total": {
+      "value": 32,
+      "source_file": "probes/probe_cases.json",
+      "source_field": "array length"
+    },
+    "probe_categories_count": {
+      "value": 10,
+      "source_file": "failure_taxonomy.md",
+      "source_field": "category count in summary table"
+    },
+    "tau2_bench_gpt41mini_pass_at_1": {
+      "value": 0.533,
+      "source_file": "eval/tau2 terminal output (not committed)",
+      "unit": "proportion (0–1)",
+      "notes": "GPT-4.1-mini, 1 trial × 30 tasks. Comparison run only. No 95% CI available — 1 trial is statistically insufficient. Gemini Flash outperforms by 19.4pp on the same retail task suite. Model: openai/gpt-4.1-mini via OpenRouter."
+    }
+  }
+}

@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 sys.set_int_max_str_digits(0)
 
@@ -41,6 +42,8 @@ REPLY_MODEL = os.getenv(
     os.getenv("BRIEF_GENERATOR_MODEL", "google/gemini-2.0-flash-001"),
 )
 REPLY_TEMPERATURE = float(os.getenv("REPLY_INTERPRETER_TEMPERATURE", "0.2"))
+REPLY_MAX_RETRIES = int(os.getenv("REPLY_INTERPRETER_MAX_RETRIES", "3"))
+REPLY_RETRY_DELAY_S = float(os.getenv("REPLY_INTERPRETER_RETRY_DELAY_S", "1.0"))
 
 # ---------------------------------------------------------------------------
 # Valid enumerations
@@ -216,6 +219,83 @@ def _validate_and_repair(raw_result: dict) -> dict:
     return result
 
 
+def _ground_honesty_check(result: dict, briefs: dict, last_email: dict) -> dict:
+    """
+    Verify each item in grounding_facts_used can be substantiated in the
+    provided briefs or last_email text.  If any fact contains key tokens
+    (numbers, dollar amounts, percentages, capitalized proper nouns) that
+    cannot be found anywhere in the source material, force UNKNOWN /
+    ASK_CLARIFICATION.
+
+    Catches hallucinated funding amounts, invented scores, or fabricated
+    company names — not stylistic paraphrase differences.
+    """
+    import re
+
+    facts = result.get("grounding_facts_used", [])
+    sentinel = "No specific grounding facts extracted from briefs."
+    if not facts or facts == [sentinel]:
+        return result
+
+    corpus_parts = [str(v) for v in briefs.values()]
+    corpus_parts.append(str(last_email))
+    corpus = " ".join(corpus_parts).lower()
+
+    def _key_tokens(text: str) -> list:
+        tokens = re.findall(r"\$[\d,.]+|\d+%|\d[\d,.]*|\b[A-Z][a-z]{2,}\b", text)
+        return [t.lower() for t in tokens if len(t) > 1]
+
+    hallucinated = []
+    for fact in facts:
+        tokens = _key_tokens(fact)
+        if not tokens:
+            continue
+        if not any(tok in corpus for tok in tokens):
+            hallucinated.append(fact)
+
+    if hallucinated:
+        log.warning(
+            "ground_honesty_check: %d/%d grounding facts not found in briefs — "
+            "forcing UNKNOWN. Hallucinated: %s",
+            len(hallucinated),
+            len(facts),
+            hallucinated,
+        )
+        result["intent"] = "UNKNOWN"
+        result["next_step"] = "ASK_CLARIFICATION"
+        result["confidence"] = 0.0
+        result["reasoning"] = (
+            f"[GUARDRAIL] Ground honesty check failed: {len(hallucinated)} "
+            "grounding fact(s) could not be verified in provided briefs. "
+            "Routing to ASK_CLARIFICATION for safety."
+        )
+
+    return result
+
+
+def _confidence_threshold_check(result: dict) -> dict:
+    """
+    If confidence < 0.65, force next_step to ASK_CLARIFICATION for
+    high-stakes actions (SEND_CAL_LINK or STOP).
+
+    Keeps the intent label for logging but prevents premature booking
+    or permanent lead closure when the model is uncertain.
+    """
+    confidence = result.get("confidence", 1.0)
+    if confidence < 0.65:
+        original_step = result.get("next_step")
+        if original_step in ("SEND_CAL_LINK", "STOP"):
+            log.warning(
+                "confidence_threshold: confidence=%.2f < 0.65 on high-stakes "
+                "action '%s' — downgrading to ASK_CLARIFICATION",
+                confidence,
+                original_step,
+            )
+            result["next_step"] = "ASK_CLARIFICATION"
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -260,44 +340,66 @@ def interpret_reply(
 
     user_message = _build_user_message(reply_text, last_email, briefs, prospect_info)
 
-    try:
-        response = _get_client().chat.completions.create(
-            model=REPLY_MODEL,
-            messages=[
-                {"role": "system", "content": REPLY_INTERPRETER_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=REPLY_TEMPERATURE,
-            response_format={"type": "json_object"},
-            name="reply_interpreter.interpret_reply",
-            metadata={
-                "company": prospect_info.get("company", ""),
-                "prospect": prospect_info.get("name", ""),
-            },
+    raw_result = None
+    last_error = None
+
+    for attempt in range(1, REPLY_MAX_RETRIES + 1):
+        try:
+            response = _get_client().chat.completions.create(
+                model=REPLY_MODEL,
+                messages=[
+                    {"role": "system", "content": REPLY_INTERPRETER_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=REPLY_TEMPERATURE,
+                response_format={"type": "json_object"},
+                name="reply_interpreter.interpret_reply",
+                metadata={
+                    "company": prospect_info.get("company", ""),
+                    "prospect": prospect_info.get("name", ""),
+                },
+            )
+            raw_text = response.choices[0].message.content
+        except Exception as exc:
+            last_error = exc
+            log.warning(
+                "LLM call failed (attempt %d/%d): %s", attempt, REPLY_MAX_RETRIES, exc
+            )
+            if attempt < REPLY_MAX_RETRIES:
+                time.sleep(REPLY_RETRY_DELAY_S)
+            continue
+
+        try:
+            raw_result = json.loads(raw_text)
+            break  # successful parse — exit retry loop
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            log.warning(
+                "LLM returned truncated JSON (attempt %d/%d): %s | Raw: %s",
+                attempt,
+                REPLY_MAX_RETRIES,
+                exc,
+                raw_text[:200],
+            )
+            if attempt < REPLY_MAX_RETRIES:
+                time.sleep(REPLY_RETRY_DELAY_S)
+
+    if raw_result is None:
+        log.error(
+            "All %d attempts failed for reply_interpreter. Last error: %s",
+            REPLY_MAX_RETRIES,
+            last_error,
         )
-        raw_text = response.choices[0].message.content
-    except Exception as exc:
-        log.error("LLM call failed in reply_interpreter: %s", exc)
         return {
             "intent": "UNKNOWN",
             "confidence": 0.0,
-            "reasoning": f"LLM call failed: {exc}",
+            "reasoning": f"LLM failed after {REPLY_MAX_RETRIES} attempts: {last_error}",
             "next_step": "ASK_CLARIFICATION",
             "grounding_facts_used": ["LLM error — no analysis performed."],
         }
 
-    # Parse JSON
-    try:
-        raw_result = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        log.error("LLM returned invalid JSON: %s | Raw: %s", exc, raw_text[:300])
-        return {
-            "intent": "UNKNOWN",
-            "confidence": 0.0,
-            "reasoning": f"LLM returned unparseable output: {raw_text[:200]}",
-            "next_step": "ASK_CLARIFICATION",
-            "grounding_facts_used": ["JSON parse error — no analysis performed."],
-        }
-
     # Validate, repair, and enforce deterministic next_step
-    return _validate_and_repair(raw_result)
+    result = _validate_and_repair(raw_result)
+    result = _ground_honesty_check(result, briefs, last_email)
+    result = _confidence_threshold_check(result)
+    return result

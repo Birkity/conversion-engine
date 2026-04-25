@@ -36,11 +36,20 @@ def score(
     has_named_ai_leadership: bool = False,
     exec_commentary_keywords: list[str] | None = None,
     industries: list[str] | None = None,
+    github_stars: int = 0,
 ) -> tuple[int, dict]:
     """
     Returns (score, rationale_dict).
     score: 0–3 integer
     rationale: breakdown of contributing signals
+
+    Signals (6 total, capped at 3):
+      1. ML stack hits       — tech_stack overlaps with known AI/ML tooling
+      2. AI role hits        — open roles contain AI/ML title keywords
+      3. Named AI leadership — has a named Head of AI, Chief Scientist, etc.
+      4. Exec AI commentary  — CEO/CTO commentary contains LLM/AI strategy keywords
+      5. Industry signal     — company operates in an AI/ML/data industry vertical
+      6. GitHub activity     — public GitHub repo has ≥100 stars (signals active OSS AI work)
     """
     points = 0
     rationale: dict = {
@@ -48,6 +57,7 @@ def score(
         "ai_role_hits": [],
         "named_ai_leadership": has_named_ai_leadership,
         "exec_ai_commentary": False,
+        "github_activity": False,
     }
 
     # ML stack (low weight — contributes max 1 point)
@@ -86,5 +96,10 @@ def score(
         if industry_hits:
             points += 1
             rationale.setdefault("industry_ai_signals", industry_hits)
+
+    # GitHub activity (medium weight — ≥100 stars signals active OSS AI/ML work)
+    if github_stars >= 100:
+        points += 1
+        rationale["github_activity"] = True
 
     return min(points, 3), rationale

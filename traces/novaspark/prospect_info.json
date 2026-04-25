@@ -1,0 +1,8 @@
+{
+  "name": "Marcus Reyes",
+  "role": "VP of Engineering",
+  "email": "marcus.reyes@sink.example.com",
+  "phone": "+15559990085",
+  "company": "NovaSpark",
+  "_policy_note": "Synthetic prospect. Rule 2: email resolves to program sink, not a real person. Phone is a non-routable test number."
+}

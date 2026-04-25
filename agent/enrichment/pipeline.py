@@ -78,10 +78,31 @@ def _compute_sector_ai_distribution(sector_companies: list[dict]) -> str:
     )
 
 
+_SPARSE_SECTOR_THRESHOLD = 5  # fewer peers than this = sparse sector
+
+
 def _build_competitor_signals(sector_companies: list[dict]) -> str:
-    """Format competitor records into the template string, appending sector distribution."""
+    """
+    Format competitor records into the template string, appending sector distribution.
+
+    Competitor selection criteria: same primary industry as the prospect (Crunchbase ODM).
+    Top-quartile threshold computed from the distribution so the LLM can position the
+    prospect's AI maturity relative to the best performers in the sector.
+
+    Sparse sector handling: if fewer than _SPARSE_SECTOR_THRESHOLD peers are found,
+    the distribution note explicitly says so; the LLM should treat sector benchmarks as
+    indicative rather than statistically significant.
+    """
     if not sector_companies:
-        return "No competitor data available."
+        return "No competitor data available. Sector benchmark is unavailable — treat AI maturity score as absolute, not relative."
+
+    sparse = len(sector_companies) < _SPARSE_SECTOR_THRESHOLD
+    sparse_note = (
+        f" (sparse sector: only {len(sector_companies)} peers found — "
+        "benchmarks are indicative, not statistically significant)"
+        if sparse else ""
+    )
+
     lines = []
     for i, comp in enumerate(sector_companies[:7], 1):
         name = comp.get("name", f"Competitor {i}")
@@ -98,12 +119,18 @@ def _build_competitor_signals(sector_companies: list[dict]) -> str:
             f"  AI maturity (pre-score): {ai_score}/3\n"
         )
     distribution = _compute_sector_ai_distribution(sector_companies)
-    lines.append(f"\n{distribution}")
+    lines.append(f"\n{distribution}{sparse_note}")
     return "\n".join(lines)
 
 
 def _find_sector_peers(record: dict, limit: int = 10) -> list[dict]:
-    """Return up to `limit` companies from the same industry in the Crunchbase seed."""
+    """
+    Return up to `limit` companies from the same industry in the Crunchbase seed.
+
+    Selection criteria: exact match on primary industry label (case-insensitive).
+    When fewer than _SPARSE_SECTOR_THRESHOLD peers exist the caller should treat
+    sector distribution statistics as indicative rather than significant.
+    """
     industries = crunchbase.extract_industries(record)
     if not industries:
         return []

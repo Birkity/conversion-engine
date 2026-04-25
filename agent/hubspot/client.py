@@ -105,10 +105,19 @@ def update_contact(contact_id: str, properties: dict) -> dict:
     return {"status": "updated", "id": result.get("id")}
 
 
+def _note_timestamp_ms() -> int:
+    """Current time in milliseconds since epoch, as required by HubSpot Notes API."""
+    import time
+    return int(time.time() * 1000)
+
+
 def add_note(contact_id: str, note_body: str) -> dict:
     """Add a plain-text note to a contact."""
     body = {
-        "properties": {"hs_note_body": note_body},
+        "properties": {
+            "hs_note_body": note_body,
+            "hs_timestamp": _note_timestamp_ms(),
+        },
         "associations": [{"to": {"id": contact_id}, "types": [
             {"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}
         ]}],
@@ -118,7 +127,7 @@ def add_note(contact_id: str, note_body: str) -> dict:
 
 
 def log_enrichment_note(contact_id: str, enrichment: dict) -> dict:
-    """Attach enrichment JSON as a HubSpot note on the contact."""
+    """Attach enrichment summary as a HubSpot note on the contact."""
     brief = enrichment.get("hiring_signal_brief", {})
     note_body = (
         f"Signal Brief — {brief.get('company', 'unknown')}\n"
@@ -126,10 +135,13 @@ def log_enrichment_note(contact_id: str, enrichment: dict) -> dict:
         f"Confidence: {brief.get('confidence', '?')}\n"
         f"ICP Segment: {brief.get('icp_segment', '?')}\n"
         f"Pitch: {brief.get('recommended_pitch_angle', '')}\n"
-        f"Enrichment TS: {enrichment.get('enrichment_ts', '')}"
+        f"Enrichment TS: {enrichment.get('enrichment_ts', datetime.now(timezone.utc).isoformat())}"
     )
     body = {
-        "properties": {"hs_note_body": note_body},
+        "properties": {
+            "hs_note_body": note_body,
+            "hs_timestamp": _note_timestamp_ms(),
+        },
         "associations": [
             {
                 "to": {"id": contact_id},
