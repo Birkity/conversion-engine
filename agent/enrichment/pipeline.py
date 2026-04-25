@@ -59,7 +59,12 @@ def _check_disqualifiers(
 
 
 def _compute_sector_ai_distribution(sector_companies: list[dict]) -> str:
-    """Compute AI maturity score distribution across sector peers."""
+    """Compute AI maturity score distribution across sector peers.
+
+    Applies the same 0-3 maturity scoring rubric as agent/enrichment/maturity.py
+    to each peer. Returns median, 75th-percentile threshold, and a sparse-sector
+    warning when n < _SPARSE_SECTOR_THRESHOLD. Full methodology: docs/competitor_gap_methodology.md
+    """
     scores: list[int] = []
     for comp in sector_companies[:10]:
         stack = crunchbase.extract_tech_stack(comp)
@@ -82,16 +87,12 @@ _SPARSE_SECTOR_THRESHOLD = 5  # fewer peers than this = sparse sector
 
 
 def _build_competitor_signals(sector_companies: list[dict]) -> str:
-    """
-    Format competitor records into the template string, appending sector distribution.
+    """Format competitor records into the template string, appending sector distribution.
 
-    Competitor selection criteria: same primary industry as the prospect (Crunchbase ODM).
-    Top-quartile threshold computed from the distribution so the LLM can position the
-    prospect's AI maturity relative to the best performers in the sector.
-
-    Sparse sector handling: if fewer than _SPARSE_SECTOR_THRESHOLD peers are found,
-    the distribution note explicitly says so; the LLM should treat sector benchmarks as
-    indicative rather than statistically significant.
+    Peer selection: same primary industry from Crunchbase ODM; up to 10 companies;
+    excludes the prospect itself; excludes companies matching ICP disqualifiers
+    (consumer apps, >5000 headcount). Full scoring algorithm and confidence calibration
+    rules documented in docs/competitor_gap_methodology.md.
     """
     if not sector_companies:
         return "No competitor data available. Sector benchmark is unavailable — treat AI maturity score as absolute, not relative."

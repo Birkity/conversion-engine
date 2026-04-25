@@ -56,15 +56,33 @@ Delta A: +21.9pp. One-tailed two-proportion z-test: z = 2.517, p = 0.006. 95% CI
 
 **Pilot Scope Recommendation**
 
-Target: Segment 1 — recently-funded Series A/B ($5–30M in last 180 days, 15–80 employees, ≥5 open engineering roles). Lead volume: 25 companies/week from Crunchbase ODM. Weekly budget: $5. 30-day success criterion: reply classification accuracy ≥ 90% on real inbound replies (minimum 10 required for statistical validity). Kill switch: `LIVE_OUTBOUND_ENABLED=true` requires explicit Tenacious sign-off per README Rule 5.
+| Parameter | Value |
+| --- | --- |
+| Target segment | Segment 1 — Series A/B ($5–30M in last 180 days, 15–80 employees, ≥5 open engineering roles) |
+| Lead volume | 25 companies/week from Crunchbase ODM; AI maturity ≥1 filter applied |
+| Budget | $5/week LLM + $0 email (Resend free tier) = ~$5/week total |
+| Duration | 30 days (4 weekly batches = ~100 total prospects contacted) |
+| Success criterion | ≥90% reply classification accuracy on minimum 10 real inbound replies |
+| A/B gate | Split first 50 replies 50/50 Variant A (signal-grounded) vs Variant B (generic); pause if Variant A reply rate is not ≥+3pp at 30 days |
+| Kill switch | `LIVE_OUTBOUND_ENABLED=true` requires explicit Tenacious CEO + CFO sign-off per README Rule 5 |
+| Escalation threshold | ≥3 booking-intent false positives in any 7-day window → pause outbound immediately |
 
 ---
 
 ## Page 2 — The Skeptic's Appendix
 
-**1. Competitive-Gap Outbound: Hypothesis, Not Claim**
+### 1. Competitive-Gap Outbound: Measured vs Hypothesized
 
-Two variants defined for the pending A/B test. Variant A (signal-grounded): subject line references prospect-specific AI maturity tier and top-quartile peer gap; body personalized per `hiring_signal_brief.json`. Variant B (generic): same Segment 1 ICP, template copy with no company-specific data. No live outbound has run (`LIVE_OUTBOUND_ENABLED=false`). Hypothesized reply-rate delta: +5–8pp in favor of Variant A, based on personalization uplift benchmarks (Woodpecker 2024: +5.5pp for research-grounded cold outbound vs. generic). Measured: pending live outbound approval. Test design: ≥50 emails per variant, same ICP segment, same 30-day window, replies tagged by variant at ingest.
+The table below distinguishes what has been directly measured from what is hypothesized pending live outbound.
+
+| Claim | Status | Basis |
+| --- | --- | --- |
+| Reply classification accuracy: 96.9% | MEASURED | 32-probe synthetic suite, April 2026 (`probes/probe_results.json`) |
+| Cost per qualified lead: $3.20–$4.37 | MEASURED | OpenRouter invoices, week of 2026-04-18 (`invoice_summary.json`) |
+| Competitive-gap reply rate uplift: +5–8pp | HYPOTHESIS | Woodpecker 2024 benchmark analogy (+5.5pp for research-grounded vs. generic); not yet measured on live outbound |
+| Stalled-thread rate improvement: −27 to −37pp | ARCHITECTURAL | Routing latency <30s vs 30–40% manual stall rate; not confirmed on production data |
+
+Two variants are defined for the pending A/B test. Variant A (signal-grounded): subject line references prospect-specific AI maturity tier and top-quartile peer gap; body personalized per `hiring_signal_brief.json`. Variant B (generic): same Segment 1 ICP, template copy with no company-specific data. No live outbound has run (`LIVE_OUTBOUND_ENABLED=false`). Test design: ≥50 emails per variant, same ICP segment, same 30-day window, replies tagged by variant at ingest.
 
 **2. Four Tenacious-Specific Failure Modes τ² Cannot Capture**
 
