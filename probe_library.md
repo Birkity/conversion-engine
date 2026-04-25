@@ -13,8 +13,30 @@ Each probe specifies:
 - The `expected_intent` the system should classify it as
 - The `expected_next_step` the system should take
 - The failure the probe is designed to catch, and why it matters
+- `trigger_rate_per_1000`: estimated frequency this reply pattern appears per 1,000 outbound contacts
+- `business_cost_per_event_usd`: estimated dollar cost if this probe fails in production
 
 All probes use synthetic context from `traces/arcana/` (Arcana Analytics, Jordan Osei, CTO, `@sink.example.com`).
+
+---
+
+## Cost-Weighted Prioritization
+
+Probe priority should be set by **expected cost per 1,000 contacts** = `trigger_rate_per_1000 × business_cost_per_event_usd / 1000`.
+
+**Top 5 highest-cost probes (per 1,000 contacts):**
+
+| # | Category | Trigger Rate | Cost/Event | Expected Cost / 1K |
+|---|---|---|---|---|
+| 16 | bench_over_commit | 3.5/1K | $5,000 | $17.50 |
+| 15 | bench_over_commit | 4.0/1K | $4,500 | $18.00 |
+| 14 | bench_over_commit | 7.0/1K | $3,200 | $22.40 |
+| 30 | mixed_intent_multi_question | 11.0/1K | $2,100 | $23.10 |
+| 5 | hostile_sarcastic (opt-out) | 8.0/1K | $2,500 | $20.00 |
+
+**Methodology:** `trigger_rate_per_1000` is estimated from: (a) Tenacious CFO interview for general reply patterns, (b) Clay/Woodpecker cold outbound benchmark data for category frequencies, (c) bench_over_commit rates estimated from NestJS-specific demand in the FinTech/SaaS ICP segments. `business_cost_per_event_usd` is estimated from: compliance exposure (explicit opt-out violations: $500–2,500), pipeline delay cost ($240–480K ACV × 0.1% probability of miss per delayed event), and reputational cost per documented brand complaint ($500 per incident as established in `memo.md` failure mode analysis).
+
+All estimates are conservative lower bounds pending live outbound measurement.
 
 ---
 

@@ -68,7 +68,7 @@ def route_decision(
 
     # ── 2. Execute the next_step action ──────────────────────────────
     if next_step == "SEND_CAL_LINK":
-        _action_send_cal_link(result, prospect_info, hsb, briefs=briefs, reasoning=reasoning, grounding=grounding)
+        _action_send_cal_link(result, prospect_info, hsb, briefs=briefs, reasoning=reasoning, grounding=grounding, intent=intent)
 
     elif next_step == "SEND_EMAIL":
         _action_send_clarification(result, prospect_info, briefs, reasoning, grounding)
@@ -138,11 +138,12 @@ def _hubspot_log(result: dict, prospect_info: dict, decision: dict) -> None:
 # Action: SEND_CAL_LINK
 # ─────────────────────────────────────────────────────────────────────
 
-def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict, briefs: dict | None = None, reasoning: str = "", grounding: list | None = None) -> None:
+def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict, briefs: dict | None = None, reasoning: str = "", grounding: list | None = None, intent: str = "") -> None:
     """Send a Cal.com booking link to the prospect.
 
     If the bench is unavailable for this prospect's required stack, downgrade
     to an honest SEND_EMAIL rather than booking a meeting we cannot staff.
+    For SCHEDULE intent, also sends an SMS booking link if prospect has a phone.
     """
     bench_match = hsb.get("bench_match", {})
     if not bench_match.get("bench_available", True):
@@ -189,6 +190,21 @@ def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict, briefs: 
         send_result = send(to=email, subject=subject, body=body)
         result["actions"].append(f"cal_link_sent: {send_result.get('status')}")
         result["cal_link"] = cal_url
+
+        # SMS booking link for SCHEDULE intent when prospect has a phone number
+        phone = prospect_info.get("phone", "")
+        if intent == "SCHEDULE" and phone:
+            try:
+                from agent.sms.handler import send_booking_link_sms
+                sms_result = send_booking_link_sms(
+                    to=phone,
+                    prospect_name=name,
+                    cal_url=cal_url,
+                )
+                result["actions"].append(f"sms_booking_link: {sms_result.get('status')}")
+            except Exception as sms_exc:
+                log.warning("reply_router SMS send failed (non-fatal): %s", sms_exc)
+                result["errors"].append(f"sms_booking_link: {sms_exc}")
 
     except Exception as exc:
         log.error("reply_router send_cal_link failed: %s", exc)
