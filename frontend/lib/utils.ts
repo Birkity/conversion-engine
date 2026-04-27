@@ -46,15 +46,27 @@ export function getSegmentColor(segment: string): string {
   return 'text-slate-400 bg-slate-800 border-slate-700';
 }
 
+export function formatIcpSegment(segment: string): string {
+  if (!segment) return '';
+  const s = segment.trim().toLowerCase();
+  if (s.startsWith('segment')) {
+    // Normalize values like "segment 1" -> "Segment 1"
+    return s.replace(/^segment\s+/i, 'Segment ');
+  }
+  if (s === 'ambiguous') return 'Ambiguous';
+  if (s === 'disqualified') return 'Disqualified';
+  return segment;
+}
+
 export function getVelocityInfo(direction: string | undefined, deltaPct: number | null) {
   if (!direction || direction === 'unknown' || deltaPct === null) {
     return { label: 'Insufficient data', color: 'text-amber-400', arrow: '–' };
   }
-  if (direction === 'accelerating' || (deltaPct !== null && deltaPct > 0)) {
-    return { label: `↑ ${deltaPct !== null ? Math.abs(deltaPct) + '%' : ''}`.trim(), color: 'text-emerald-400', arrow: '↑' };
+  if (direction === 'accelerating' || deltaPct > 0) {
+    return { label: `↑ ${Math.abs(deltaPct)}%`, color: 'text-emerald-400', arrow: '↑' };
   }
-  if (direction === 'decelerating' || (deltaPct !== null && deltaPct < 0)) {
-    return { label: `↓ ${deltaPct !== null ? Math.abs(deltaPct) + '%' : ''}`.trim(), color: 'text-rose-400', arrow: '↓' };
+  if (direction === 'decelerating' || deltaPct < 0) {
+    return { label: `↓ ${Math.abs(deltaPct)}%`, color: 'text-rose-400', arrow: '↓' };
   }
   return { label: direction, color: 'text-slate-400', arrow: '–' };
 }

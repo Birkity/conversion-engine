@@ -12,51 +12,79 @@ interface StageInfo {
   sub?: string;
 }
 
+function pluralize(count: number, singular: string, plural: string) {
+  if (count === 1) return singular;
+  return plural;
+}
+
+function getAwaitingReplyState(status: PipelineStatus, replyRound: number, started: boolean): StageState {
+  if (status === 'booked' || status === 'stopped' || status === 'processing') return 'complete';
+  if (status === 'waiting_for_reply') return 'active';
+  if (replyRound > 0) return 'complete';
+  if (started) return 'active';
+  return 'pending';
+}
+
+function getAwaitingReplySub(status: PipelineStatus, replyRound: number): string | undefined {
+  if (replyRound > 0) {
+    const noun = pluralize(replyRound, 'reply', 'replies');
+    return `${replyRound} ${noun} received`;
+  }
+  if (status === 'waiting_for_reply') return 'Paste reply below';
+  return undefined;
+}
+
+function getOutcomeSub(status: PipelineStatus): string | undefined {
+  if (status === 'booked') return 'Meeting booked';
+  if (status === 'stopped') return 'Outreach stopped';
+  return undefined;
+}
+
+function getLabelClass(state: StageState): string {
+  if (state === 'complete') return 'text-slate-300';
+  if (state === 'active') return 'text-amber-300';
+  return 'text-slate-600';
+}
+
 function deriveStages(status: PipelineStatus, turns: ConversationTurn[]): StageInfo[] {
   const agentTurns = turns.filter(t => t.from === 'agent');
   const prospectTurns = turns.filter(t => t.from === 'prospect');
   const isTerminal = status === 'booked' || status === 'stopped';
-  const isProcessing = status === 'processing';
-  const isWaiting = status === 'waiting_for_reply';
   const started = status !== 'idle';
 
   const replyRound = prospectTurns.length;
   const agentRound = agentTurns.length;
+  const emailSub = agentRound > 0
+    ? `${agentRound} ${pluralize(agentRound, 'email sent', 'emails sent')}`
+    : undefined;
+  const awaitingReplyState = getAwaitingReplyState(status, replyRound, started);
+  const awaitingReplySub = getAwaitingReplySub(status, replyRound);
 
   return [
     {
       label: 'Research',
-      state: 'complete',
-      sub: 'Brief & ICP loaded',
+      state: started ? 'complete' : 'pending',
+      sub: started ? 'Brief & ICP loaded' : 'Will analyze traces on run',
     },
     {
       label: 'Email Sent',
       state: started ? 'complete' : 'pending',
-      sub: agentRound > 0 ? `${agentRound} email${agentRound !== 1 ? 's' : ''} sent` : undefined,
+      sub: emailSub,
     },
     {
       label: 'Awaiting Reply',
-      state: isTerminal || isProcessing ? 'complete'
-           : isWaiting ? 'active'
-           : replyRound > 0 ? 'complete'
-           : started ? 'active'
-           : 'pending',
-      sub: replyRound > 0
-        ? `${replyRound} repl${replyRound !== 1 ? 'ies' : 'y'} received`
-        : isWaiting ? 'Paste reply below'
-        : undefined,
+      state: awaitingReplyState,
+      sub: awaitingReplySub,
     },
     {
       label: 'Outcome',
       state: isTerminal ? 'complete' : 'pending',
-      sub: status === 'booked' ? 'Meeting booked'
-         : status === 'stopped' ? 'Outreach stopped'
-         : undefined,
+      sub: getOutcomeSub(status),
     },
   ];
 }
 
-function StageIcon({ state, isProcessing }: { state: StageState; isProcessing?: boolean }) {
+function StageIcon({ state, isProcessing }: Readonly<{ state: StageState; isProcessing?: boolean }>) {
   if (state === 'complete') {
     return (
       <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
@@ -90,7 +118,7 @@ interface Props {
   turns: ConversationTurn[];
 }
 
-export default function PipelineStageTracker({ status, turns }: Props) {
+export default function PipelineStageTracker({ status, turns }: Readonly<Props>) {
   const stages = deriveStages(status, turns);
   const isProcessing = status === 'processing';
 
@@ -99,7 +127,6 @@ export default function PipelineStageTracker({ status, turns }: Props) {
       <div className="flex items-start gap-0">
         {stages.map((stage, i) => {
           const isLast = i === stages.length - 1;
-          const isActiveStage = stage.state === 'active' || (isProcessing && i === 2);
 
           return (
             <div key={stage.label} className="flex items-start flex-1 min-w-0">
@@ -134,9 +161,7 @@ export default function PipelineStageTracker({ status, turns }: Props) {
               <div className="flex flex-col min-w-0">
                 <span className={cn(
                   'text-[11px] font-medium truncate',
-                  stage.state === 'complete' ? 'text-slate-300'
-                  : stage.state === 'active' ? 'text-amber-300'
-                  : 'text-slate-600'
+                  getLabelClass(stage.state)
                 )}>
                   {stage.label}
                 </span>

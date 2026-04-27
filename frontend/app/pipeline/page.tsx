@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import { ArrowRight, User, Workflow, CalendarCheck, XCircle, CircleDashed, Loader2, Plus } from 'lucide-react';
 import { getAllCompanyData } from '@/lib/data';
-import { getSegmentColor, cn } from '@/lib/utils';
+import { getSegmentColor, formatIcpSegment, cn } from '@/lib/utils';
 import type { PipelineStatus, CompanyData } from '@/lib/types';
 
 function StatusIndicator({ status, turns }: Readonly<{ status: PipelineStatus; turns: number }>) {
@@ -59,6 +59,7 @@ function CompanyCard({ company, variant }: Readonly<{ company: CompanyData; vari
   const turns = company.conversationState?.turns?.length ?? 0;
   const companyName = company.brief?.company ?? company.slug;
   const segment = company.brief?.icp_segment ?? '';
+  const segmentLabel = formatIcpSegment(segment);
   const segColor = getSegmentColor(segment);
   const pitchAngle = company.brief?.recommended_pitch_angle;
 
@@ -89,9 +90,9 @@ function CompanyCard({ company, variant }: Readonly<{ company: CompanyData; vari
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-slate-100 truncate">{companyName}</h3>
-          {segment && (
+          {segmentLabel && (
             <span className={cn('inline-flex items-center mt-1 px-2 py-0.5 rounded border text-xs font-medium', segColor)}>
-              {segment}
+              {segmentLabel}
             </span>
           )}
         </div>

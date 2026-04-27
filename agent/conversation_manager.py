@@ -93,6 +93,79 @@ def _traces_path(slug: str) -> Path:
     return ROOT / "traces" / slug
 
 
+def _default_company_name(slug: str) -> str:
+    parts = [p for p in slug.replace("_", "-").split("-") if p]
+    return " ".join(p.capitalize() for p in parts) or slug
+
+
+def _build_synthetic_prospect(slug: str, company: str) -> dict:
+    return {
+        "name": f"{company} Contact",
+        "role": "Engineering Lead",
+        "email": f"{slug}.prospect@sink.example.com",
+        "company": company,
+        "_policy_note": "Synthetic prospect generated automatically for pipeline safety.",
+    }
+
+
+def _generate_briefs_from_signals(slug: str, signals: dict) -> tuple[dict | None, dict | None]:
+    try:
+        from agent.brief_generator import generate
+        result = generate(signals)
+        log.info("ensure_trace_context regenerated briefs from signals slug=%s", slug)
+        return result.get("hiring_signal_brief"), result.get("competitor_gap_brief")
+    except Exception as exc:
+        log.warning("ensure_trace_context brief generation failed slug=%s: %s", slug, exc)
+        return None, None
+
+
+def _generate_briefs_from_enrichment(slug: str) -> tuple[dict | None, dict | None]:
+    try:
+        from agent.enrichment.pipeline import enrich
+        company_name = _default_company_name(slug)
+        result = enrich(company_name)
+        log.info("ensure_trace_context enrichment fallback generated briefs slug=%s", slug)
+        return result.get("hiring_signal_brief"), result.get("competitor_gap_brief")
+    except Exception as exc:
+        log.warning("ensure_trace_context enrichment fallback failed slug=%s: %s", slug, exc)
+        return None, None
+
+
+def _ensure_trace_context(slug: str) -> tuple[dict | None, dict | None, dict | None]:
+    """Ensure Act II input files exist; regenerate missing artifacts when possible."""
+    traces = _traces_path(slug)
+    traces.mkdir(parents=True, exist_ok=True)
+
+    hsb_path = traces / _HIRING_BRIEF_FILE
+    cgb_path = traces / _COMPETITOR_GAP_FILE
+    prospect_path = traces / _PROSPECT_INFO_FILE
+    signals = _load_json(traces / "signals.json")
+
+    hsb = _load_json(hsb_path)
+    cgb = _load_json(cgb_path)
+    prospect = _load_json(prospect_path)
+
+    if not hsb or not cgb:
+        generated_hsb, generated_cgb = (
+            _generate_briefs_from_signals(slug, signals)
+            if signals else _generate_briefs_from_enrichment(slug)
+        )
+        if generated_hsb and not hsb:
+            _save_json(hsb_path, generated_hsb)
+            hsb = generated_hsb
+        if generated_cgb and not cgb:
+            _save_json(cgb_path, generated_cgb)
+            cgb = generated_cgb
+
+    if not prospect:
+        company_name = (hsb or {}).get("company") or (signals or {}).get("company_name") or _default_company_name(slug)
+        prospect = _build_synthetic_prospect(slug, company_name)
+        _save_json(prospect_path, prospect)
+        log.info("ensure_trace_context created synthetic prospect_info slug=%s", slug)
+
+    return hsb, cgb, prospect
+
+
 # ─────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────
@@ -256,11 +329,7 @@ def start_pipeline(slug: str) -> dict:
     Returns: updated ConversationState dict.
     Raises: ValueError on policy violation, RuntimeError on send failure.
     """
-    traces = _traces_path(slug)
-
-    hsb = _load_json(traces / _HIRING_BRIEF_FILE)
-    cgb = _load_json(traces / _COMPETITOR_GAP_FILE)
-    prospect = _load_json(traces / _PROSPECT_INFO_FILE)
+    hsb, cgb, prospect = _ensure_trace_context(slug)
 
     if not hsb or not cgb or not prospect:
         raise ValueError(
