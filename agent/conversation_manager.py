@@ -13,6 +13,7 @@ Policy compliance (data_handling_policy.md):
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,7 +25,7 @@ log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 
-KNOWN_SLUGS = [
+_BUILTIN_SLUGS = [
     "arcana", "brightpath", "coraltech", "kinanalytics",
     "novaspark", "pulsesight", "snaptrade", "streamlineops", "wiseitech",
 ]
@@ -33,6 +34,30 @@ _REAL_DOMAINS = {
     "gmail.com", "yahoo.com", "outlook.com", "hotmail.com",
     "icloud.com", "protonmail.com", "live.com",
 }
+
+_SLUG_CHARS_RE = re.compile(r"[^a-z0-9]+")
+
+_PROSPECT_INFO_FILE = "prospect_info.json"
+_HIRING_BRIEF_FILE = "hiring_signal_brief.json"
+_COMPETITOR_GAP_FILE = "competitor_gap_brief.json"
+
+
+def _custom_registry_path() -> Path:
+    return ROOT / "artifacts" / "custom_companies.json"
+
+
+def get_all_slugs() -> list[str]:
+    """Return all known slugs: builtins + any user-created companies."""
+    try:
+        data = _load_json(_custom_registry_path())
+        custom = data if isinstance(data, list) else []
+    except Exception:
+        custom = []
+    return _BUILTIN_SLUGS + [s for s in custom if s not in _BUILTIN_SLUGS]
+
+
+# Backward-compatible alias — call get_all_slugs() for the live list
+KNOWN_SLUGS = _BUILTIN_SLUGS
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -84,8 +109,8 @@ def get_state(slug: str) -> dict:
 
 def slug_from_email(contact_email: str) -> str | None:
     """Resolve a slug by matching contact_email against prospect_info.json files."""
-    for slug in KNOWN_SLUGS:
-        prospect = _load_json(_traces_path(slug) / "prospect_info.json")
+    for slug in get_all_slugs():
+        prospect = _load_json(_traces_path(slug) / _PROSPECT_INFO_FILE)
         if prospect and prospect.get("email", "").lower() == contact_email.lower():
             return slug
         # Also check conversation_state.json in case prospect_info is unavailable
@@ -93,6 +118,131 @@ def slug_from_email(contact_email: str) -> str | None:
         if state and state.get("prospect_email", "").lower() == contact_email.lower():
             return slug
     return None
+
+
+def create_company(
+    company_name: str,
+    prospect_name: str,
+    prospect_email: str,
+    prospect_role: str,
+    pitch_angle: str = "",
+) -> dict:
+    """
+    Register a new company so it can be run through the pipeline.
+
+    Creates minimal trace files under traces/{slug}/ and registers the slug
+    in artifacts/custom_companies.json.
+
+    Policy compliance:
+      Rule 2: prospect_email must NOT be a real personal address domain.
+      Rule 7: only first name + email logged.
+
+    Returns: {"slug": str, "company": str}
+    Raises: ValueError on policy violation or invalid input.
+    """
+    if not company_name.strip():
+        raise ValueError("company_name is required.")
+    if not prospect_name.strip():
+        raise ValueError("prospect_name is required.")
+    if not prospect_email.strip() or "@" not in prospect_email:
+        raise ValueError("prospect_email must be a valid email address.")
+    if not prospect_role.strip():
+        raise ValueError("prospect_role is required.")
+
+    # Rule 2: reject real personal domains
+    domain = prospect_email.split("@")[-1].lower()
+    if domain in _REAL_DOMAINS:
+        raise ValueError(
+            f"Policy violation (Rule 2): {prospect_email!r} uses a real personal domain "
+            f"(@{domain}). Use a synthetic address such as "
+            f"{prospect_name.split()[0].lower()}@sink.example.com."
+        )
+
+    # Derive slug: lowercase, strip specials, collapse hyphens
+    slug = _SLUG_CHARS_RE.sub("-", company_name.strip().lower()).strip("-")
+    if not slug:
+        raise ValueError("Could not derive a valid slug from the company name.")
+
+    # Prevent clobbering built-in companies
+    if slug in _BUILTIN_SLUGS:
+        raise ValueError(
+            f"Slug {slug!r} conflicts with a built-in company. "
+            "Use a more specific company name."
+        )
+
+    traces_dir = ROOT / "traces" / slug
+    artifacts_dir = ROOT / "artifacts" / slug
+    traces_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    company = company_name.strip()
+    first_name = prospect_name.strip().split()[0]
+    log.info("create_company slug=%s prospect=%s email=%s", slug, first_name, prospect_email)
+
+    # Minimal prospect_info.json
+    _save_json(traces_dir / _PROSPECT_INFO_FILE, {
+        "name": prospect_name.strip(),
+        "role": prospect_role.strip(),
+        "email": prospect_email.strip(),
+        "company": company,
+    })
+
+    # Minimal hiring_signal_brief.json (used by email generator)
+    _save_json(traces_dir / _HIRING_BRIEF_FILE, {
+        "company": company,
+        "hiring_velocity": {
+            "direction": "unknown",
+            "delta_pct": None,
+            "signal_strength": "low",
+            "observation": "No signal data — manually added company.",
+        },
+        "budget_urgency": {"level": "unknown", "signal": None, "runway_pressure": None},
+        "cost_pressure": {"present": False, "signal": None, "icp_segment_implication": None},
+        "engineering_maturity": {
+            "stack_sophistication": "unknown",
+            "detected_stack": [],
+            "bench_match_notes": "No data available.",
+        },
+        "ai_maturity_score": 0,
+        "ai_maturity_rationale": {
+            "ai_roles_found": [],
+            "modern_ml_stack_signals": [],
+            "executive_ai_signals": "unknown",
+            "named_ai_leadership": False,
+        },
+        "confidence": 0.5,
+        "icp_segment": "Segment 3",
+        "recommended_pitch_angle": pitch_angle.strip() if pitch_angle.strip()
+            else f"Outreach to {first_name} at {company} — personalise before sending.",
+        "bench_match": {"required_stacks": [], "bench_available": True},
+        "honesty_flags": {"weak_hiring_velocity_signal": True, "bench_gap_detected": False},
+    })
+
+    # Minimal competitor_gap_brief.json (required by start_pipeline)
+    _save_json(traces_dir / _COMPETITOR_GAP_FILE, {
+        "sector": "unknown",
+        "competitors_analyzed": 0,
+        "prospect_ai_score": 0,
+        "prospect_position_in_sector": "unknown",
+        "gaps": [],
+        "overall_confidence": 0.5,
+        "tenacious_status": "CUSTOM_ENTRY",
+    })
+
+    # Register slug in custom_companies.json
+    registry_path = _custom_registry_path()
+    existing: list = []
+    try:
+        data = _load_json(registry_path)
+        existing = data if isinstance(data, list) else []
+    except Exception:
+        pass
+    if slug not in existing:
+        existing.append(slug)
+    with open(registry_path, "w", encoding="utf-8") as f:
+        json.dump(existing, f, indent=2)
+
+    return {"slug": slug, "company": company}
 
 
 def start_pipeline(slug: str) -> dict:
@@ -108,9 +258,9 @@ def start_pipeline(slug: str) -> dict:
     """
     traces = _traces_path(slug)
 
-    hsb = _load_json(traces / "hiring_signal_brief.json")
-    cgb = _load_json(traces / "competitor_gap_brief.json")
-    prospect = _load_json(traces / "prospect_info.json")
+    hsb = _load_json(traces / _HIRING_BRIEF_FILE)
+    cgb = _load_json(traces / _COMPETITOR_GAP_FILE)
+    prospect = _load_json(traces / _PROSPECT_INFO_FILE)
 
     if not hsb or not cgb or not prospect:
         raise ValueError(
@@ -257,9 +407,9 @@ def handle_reply(slug: str, reply_text: str, channel: str = "email") -> dict:
         )
 
     traces = _traces_path(slug)
-    hsb = _load_json(traces / "hiring_signal_brief.json")
-    cgb = _load_json(traces / "competitor_gap_brief.json")
-    prospect = _load_json(traces / "prospect_info.json")
+    hsb = _load_json(traces / _HIRING_BRIEF_FILE)
+    cgb = _load_json(traces / _COMPETITOR_GAP_FILE)
+    prospect = _load_json(traces / _PROSPECT_INFO_FILE)
     last_email = _load_json(_last_email_path(slug))
 
     if not all([hsb, cgb, prospect, last_email]):

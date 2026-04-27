@@ -3,23 +3,29 @@ import Link from 'next/link';
 import { ArrowLeft, User, Mail } from 'lucide-react';
 import { getHiringBrief, getProspectInfo } from '@/lib/data';
 import { COMPANY_SLUGS, getSegmentColor, cn } from '@/lib/utils';
-import type { CompanySlug } from '@/lib/types';
 import PipelineRunner from '@/components/pipeline/PipelineRunner';
 
 export function generateStaticParams() {
   return COMPANY_SLUGS.map((slug) => ({ slug }));
 }
 
+export const dynamicParams = true;
+
 export default async function PipelineSlugPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ slug: string }>;
-}) {
+}>) {
   const { slug } = await params;
-  if (!COMPANY_SLUGS.includes(slug as CompanySlug)) notFound();
 
-  const s = slug as CompanySlug;
-  const [brief, prospect] = await Promise.all([getHiringBrief(s), getProspectInfo(s)]);
+  // Load brief dynamically — works for both built-in and custom companies
+  const [brief, prospect] = await Promise.all([
+    getHiringBrief(slug),
+    getProspectInfo(slug),
+  ]);
+
+  // 404 only if there are truly no trace files for this slug
+  if (!brief && !prospect) notFound();
 
   const companyName = brief?.company ?? slug;
   const segment = brief?.icp_segment ?? '';
@@ -73,11 +79,9 @@ export default async function PipelineSlugPage({
         )}
       </div>
 
-      {/* Divider */}
       <div className="border-t border-slate-800" />
 
-      {/* Live pipeline runner */}
-      <PipelineRunner slug={s} companyName={companyName} />
+      <PipelineRunner slug={slug} companyName={companyName} />
     </div>
   );
 }

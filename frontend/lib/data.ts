@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import type {
   CompanySignals,
   HiringBrief,
@@ -11,7 +11,6 @@ import type {
   ScenarioLog,
   AblationResults,
   InvoiceSummary,
-  CompanySlug,
   CompanyData,
   ConversationState,
 } from './types';
@@ -29,32 +28,42 @@ function readJson<T>(relPath: string): T | null {
   }
 }
 
-export function getSignals(slug: CompanySlug): CompanySignals | null {
+export function getSignals(slug: string): CompanySignals | null {
   return readJson<CompanySignals>(`traces/${slug}/signals.json`);
 }
 
-export function getHiringBrief(slug: CompanySlug): HiringBrief | null {
+export function getHiringBrief(slug: string): HiringBrief | null {
   return readJson<HiringBrief>(`traces/${slug}/hiring_signal_brief.json`);
 }
 
-export function getCompetitorGap(slug: CompanySlug): CompetitorGapBrief | null {
+export function getCompetitorGap(slug: string): CompetitorGapBrief | null {
   return readJson<CompetitorGapBrief>(`traces/${slug}/competitor_gap_brief.json`);
 }
 
-export function getProspectInfo(slug: CompanySlug): ProspectInfo | null {
+export function getProspectInfo(slug: string): ProspectInfo | null {
   return readJson<ProspectInfo>(`traces/${slug}/prospect_info.json`);
 }
 
-export function getLastEmail(slug: CompanySlug): LastEmail | null {
+export function getLastEmail(slug: string): LastEmail | null {
   return readJson<LastEmail>(`artifacts/${slug}/last_email.json`);
 }
 
-export function getConversationState(slug: CompanySlug): ConversationState | null {
+export function getConversationState(slug: string): ConversationState | null {
   return readJson<ConversationState>(`artifacts/${slug}/conversation_state.json`);
 }
 
+function getCustomSlugs(): string[] {
+  return readJson<string[]>('artifacts/custom_companies.json') ?? [];
+}
+
+export function getAllSlugs(): string[] {
+  const custom = getCustomSlugs();
+  const known = COMPANY_SLUGS as string[];
+  return [...known, ...custom.filter((s) => !known.includes(s))];
+}
+
 export function getAllCompanyData(): CompanyData[] {
-  return COMPANY_SLUGS.map((slug) => ({
+  return getAllSlugs().map((slug) => ({
     slug,
     signals: getSignals(slug),
     brief: getHiringBrief(slug),
