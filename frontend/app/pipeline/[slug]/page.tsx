@@ -1,0 +1,83 @@
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { ArrowLeft, User, Mail } from 'lucide-react';
+import { getHiringBrief, getProspectInfo } from '@/lib/data';
+import { COMPANY_SLUGS, getSegmentColor, cn } from '@/lib/utils';
+import type { CompanySlug } from '@/lib/types';
+import PipelineRunner from '@/components/pipeline/PipelineRunner';
+
+export function generateStaticParams() {
+  return COMPANY_SLUGS.map((slug) => ({ slug }));
+}
+
+export default async function PipelineSlugPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  if (!COMPANY_SLUGS.includes(slug as CompanySlug)) notFound();
+
+  const s = slug as CompanySlug;
+  const [brief, prospect] = await Promise.all([getHiringBrief(s), getProspectInfo(s)]);
+
+  const companyName = brief?.company ?? slug;
+  const segment = brief?.icp_segment ?? '';
+
+  return (
+    <div className="p-6 space-y-5">
+      {/* Breadcrumb */}
+      <div>
+        <Link
+          href="/pipeline"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 mb-4 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          All Companies
+        </Link>
+
+        {/* Company header */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-100">{companyName}</h1>
+            {brief?.recommended_pitch_angle && (
+              <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                {brief.recommended_pitch_angle}
+              </p>
+            )}
+          </div>
+          {segment && (
+            <span className={cn(
+              'inline-flex items-center px-3 py-1 rounded-lg border text-sm font-medium flex-shrink-0',
+              getSegmentColor(segment)
+            )}>
+              {segment}
+            </span>
+          )}
+        </div>
+
+        {/* Prospect info row */}
+        {prospect && (
+          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-slate-300 font-medium">{prospect.name}</span>
+              <span className="text-slate-600">·</span>
+              <span>{prospect.role}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-slate-600" />
+              <span className="font-mono">{prospect.email}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-slate-800" />
+
+      {/* Live pipeline runner */}
+      <PipelineRunner slug={s} companyName={companyName} />
+    </div>
+  );
+}

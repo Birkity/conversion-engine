@@ -13,6 +13,7 @@ import type {
   InvoiceSummary,
   CompanySlug,
   CompanyData,
+  ConversationState,
 } from './types';
 import { COMPANY_SLUGS } from './utils';
 
@@ -48,6 +49,10 @@ export function getLastEmail(slug: CompanySlug): LastEmail | null {
   return readJson<LastEmail>(`artifacts/${slug}/last_email.json`);
 }
 
+export function getConversationState(slug: CompanySlug): ConversationState | null {
+  return readJson<ConversationState>(`artifacts/${slug}/conversation_state.json`);
+}
+
 export function getAllCompanyData(): CompanyData[] {
   return COMPANY_SLUGS.map((slug) => ({
     slug,
@@ -56,6 +61,7 @@ export function getAllCompanyData(): CompanyData[] {
     gap: getCompetitorGap(slug),
     prospect: getProspectInfo(slug),
     email: getLastEmail(slug),
+    conversationState: getConversationState(slug),
   }));
 }
 

@@ -7,6 +7,7 @@ import {
   Building2,
   MessageSquare,
   FlaskConical,
+  Workflow,
   ChevronDown,
   ChevronRight,
   Zap,
@@ -28,6 +29,7 @@ const COMPANIES = [
 
 const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/pipeline', label: 'Run Pipeline', icon: Workflow },
   { href: '/communication', label: 'Communication', icon: MessageSquare },
   { href: '/probes', label: 'Probe Results', icon: FlaskConical },
 ];
@@ -108,7 +110,7 @@ export default function Sidebar() {
             href={item.href}
             label={item.label}
             icon={item.icon}
-            active={pathname === item.href}
+            active={item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)}
           />
         ))}
       </nav>

@@ -1,4 +1,4 @@
-import { getAllCompanyData, getProbeResults, getInvoiceSummary, getAblationResults } from '@/lib/data';
+import { getAllCompanyData, getProbeResults, getAblationResults } from '@/lib/data';
 import HeroStats from '@/components/dashboard/HeroStats';
 import SystemHealthBar from '@/components/dashboard/SystemHealthBar';
 import CompanyPipelineTable from '@/components/dashboard/CompanyPipelineTable';
@@ -6,14 +6,10 @@ import CompanyPipelineTable from '@/components/dashboard/CompanyPipelineTable';
 export default function DashboardPage() {
   const companies = getAllCompanyData();
   const probes = getProbeResults();
-  const invoice = getInvoiceSummary();
   const ablation = getAblationResults();
 
   const passed = probes.filter((p) => p.passed).length;
   const accuracy = ablation?.conditions.act4_method.pass_at_1 ?? 0.969;
-  const costLow = invoice?.cost_per_qualified_lead_usd.low ?? 3.2;
-  const costHigh = invoice?.cost_per_qualified_lead_usd.high ?? 4.37;
-  const weeklySpend = invoice?.total_weekly_usd ?? 4.62;
 
   return (
     <div className="p-6 space-y-5">
@@ -27,9 +23,6 @@ export default function DashboardPage() {
 
       {/* Hero stats */}
       <HeroStats
-        weeklySpend={weeklySpend}
-        costLow={costLow}
-        costHigh={costHigh}
         probesPassed={passed}
         probesTotal={probes.length || 32}
         accuracy={accuracy}

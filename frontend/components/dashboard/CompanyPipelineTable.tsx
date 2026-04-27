@@ -1,7 +1,39 @@
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Minus } from 'lucide-react';
-import type { CompanyData } from '@/lib/types';
+import { ArrowRight, CheckCircle2, Minus, Play, Clock, CalendarCheck, XCircle } from 'lucide-react';
+import type { CompanyData, PipelineStatus } from '@/lib/types';
 import { getSegmentColor, getVelocityInfo, cn } from '@/lib/utils';
+
+function PipelineStatusPill({ status }: { status: PipelineStatus }) {
+  if (status === 'idle') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-400 text-xs hover:border-emerald-700/50 hover:text-emerald-400 transition-colors">
+        <Play className="w-2.5 h-2.5 fill-current" /> Start
+      </span>
+    );
+  }
+  if (status === 'waiting_for_reply') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-950/40 border border-amber-700/40 text-amber-300 text-xs">
+        <Clock className="w-2.5 h-2.5" /> Waiting
+      </span>
+    );
+  }
+  if (status === 'booked') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-950/40 border border-emerald-700/40 text-emerald-300 text-xs">
+        <CalendarCheck className="w-2.5 h-2.5" /> Booked
+      </span>
+    );
+  }
+  if (status === 'stopped') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-950/40 border border-rose-700/40 text-rose-300 text-xs">
+        <XCircle className="w-2.5 h-2.5" /> Stopped
+      </span>
+    );
+  }
+  return null;
+}
 
 interface Props {
   data: CompanyData[];
@@ -38,7 +70,7 @@ export default function CompanyPipelineTable({ data }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-800">
-              {['Company', 'Industries', 'ICP Segment', 'AI Maturity', 'Hiring Velocity', 'Email', 'Prospect'].map(
+              {['Company', 'Industries', 'ICP Segment', 'AI Maturity', 'Hiring Velocity', 'Email', 'Prospect', 'Pipeline'].map(
                 (h) => (
                   <th
                     key={h}
@@ -106,6 +138,11 @@ export default function CompanyPipelineTable({ data }: Props) {
                   </td>
                   <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap max-w-[160px] truncate">
                     {prospect}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link href={`/pipeline/${row.slug}`}>
+                      <PipelineStatusPill status={row.conversationState?.status ?? 'idle'} />
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <Link

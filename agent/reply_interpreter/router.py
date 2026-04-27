@@ -190,6 +190,7 @@ def _action_send_cal_link(result: dict, prospect_info: dict, hsb: dict, briefs: 
         send_result = send(to=email, subject=subject, body=body)
         result["actions"].append(f"cal_link_sent: {send_result.get('status')}")
         result["cal_link"] = cal_url
+        result["agent_email"] = {"type": "cal_link_email", "subject": subject, "body": body}
 
         # SMS booking link for SCHEDULE intent when prospect has a phone number
         phone = prospect_info.get("phone", "")
@@ -262,6 +263,7 @@ def _action_send_clarification(
 
         send_result = send(to=email, subject=subject, body=body)
         result["actions"].append(f"clarification_sent: {send_result.get('status')}")
+        result["agent_email"] = {"type": "clarification_email", "subject": subject, "body": body}
 
     except Exception as exc:
         log.error("reply_router send_clarification failed: %s", exc)
@@ -296,6 +298,7 @@ def _action_ask_clarification(result: dict, prospect_info: dict, briefs: dict) -
 
         send_result = send(to=email, subject=subject, body=body)
         result["actions"].append(f"clarification_asked: {send_result.get('status')}")
+        result["agent_email"] = {"type": "clarification_email", "subject": subject, "body": body}
 
     except Exception as exc:
         log.error("reply_router ask_clarification failed: %s", exc)
