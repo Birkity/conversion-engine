@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, User, Mail } from 'lucide-react';
 import { getHiringBrief, getProspectInfo } from '@/lib/data';
-import { COMPANY_SLUGS, getSegmentColor, cn } from '@/lib/utils';
+import { COMPANY_SLUGS, getSegmentColor, formatIcpSegment, cn } from '@/lib/utils';
 import PipelineRunner from '@/components/pipeline/PipelineRunner';
 
 export function generateStaticParams() {
@@ -29,6 +29,7 @@ export default async function PipelineSlugPage({
 
   const companyName = brief?.company ?? slug;
   const segment = brief?.icp_segment ?? '';
+  const segmentLabel = formatIcpSegment(segment);
 
   return (
     <div className="p-6 space-y-5">
@@ -52,12 +53,12 @@ export default async function PipelineSlugPage({
               </p>
             )}
           </div>
-          {segment && (
+          {segmentLabel && (
             <span className={cn(
               'inline-flex items-center px-3 py-1 rounded-lg border text-sm font-medium flex-shrink-0',
               getSegmentColor(segment)
             )}>
-              {segment}
+              {segmentLabel}
             </span>
           )}
         </div>
