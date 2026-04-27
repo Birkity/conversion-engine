@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 load_dotenv()
@@ -24,6 +25,13 @@ CALCOM_WEBHOOK_SECRET = os.getenv("CALCOM_WEBHOOK_SECRET", "")
 HUBSPOT_CLIENT_SECRET = os.getenv("HUBSPOT_CLIENT_SECRET", "")
 
 app = FastAPI(title="Conversion Engine Webhook Hub", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 
 
 def _svix_verify(secret_bytes: bytes, msg_id: str, timestamp: str, body: bytes, sig_header: str) -> bool:
@@ -212,3 +220,102 @@ async def hubspot_webhook(request: Request):
         )
 
     return JSONResponse({"received": True, "count": len(events)}, status_code=200)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Pipeline API — used by the Next.js frontend
+# ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/pipeline/run")
+async def pipeline_run(request: Request):
+    """Start the pipeline for a company: generate + send outbound email."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
+
+    slug = (body.get("slug") or "").strip().lower()
+    if not slug:
+        return JSONResponse({"error": "slug is required"}, status_code=422)
+
+    try:
+        from agent.conversation_manager import start_pipeline
+        state = start_pipeline(slug)
+        return JSONResponse(state, status_code=200)
+    except ValueError as exc:
+        log.warning("pipeline_run policy/validation error slug=%s: %s", slug, exc)
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    except Exception as exc:
+        log.error("pipeline_run failed slug=%s: %s", slug, exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/conversations/reply")
+async def conversations_reply(request: Request):
+    """
+    Handle a prospect reply — interpret intent and execute routing action.
+
+    Body: {"contact_email": str, "channel": "email"|"sms", "body": str}
+
+    Compatible with the curl command:
+      curl -X POST http://localhost:8000/conversations/reply \\
+        -H "Content-Type: application/json" \\
+        -d '{"contact_email":"...","channel":"email","body":"..."}'
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
+
+    contact_email = (payload.get("contact_email") or "").strip()
+    channel = (payload.get("channel") or "email").strip().lower()
+    reply_body = (payload.get("body") or "").strip()
+
+    if not contact_email:
+        return JSONResponse({"error": "contact_email is required"}, status_code=422)
+    if not reply_body:
+        return JSONResponse({"error": "body is required"}, status_code=422)
+    if channel not in ("email", "sms"):
+        return JSONResponse({"error": "channel must be 'email' or 'sms'"}, status_code=422)
+
+    try:
+        from agent.conversation_manager import slug_from_email, handle_reply
+        slug = slug_from_email(contact_email)
+        if not slug:
+            return JSONResponse(
+                {"error": f"No pipeline found for contact_email={contact_email!r}. "
+                          "Ensure the pipeline has been started first."},
+                status_code=404,
+            )
+        state = handle_reply(slug=slug, reply_text=reply_body, channel=channel)
+        return JSONResponse(state, status_code=200)
+    except ValueError as exc:
+        log.warning("conversations_reply validation error: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    except Exception as exc:
+        log.error("conversations_reply failed: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/conversations/{slug}")
+async def get_conversation(slug: str):
+    """Return current conversation state for a company slug."""
+    try:
+        from agent.conversation_manager import get_state
+        state = get_state(slug.lower())
+        return JSONResponse(state, status_code=200)
+    except Exception as exc:
+        log.error("get_conversation failed slug=%s: %s", slug, exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/pipeline/reset/{slug}")
+async def pipeline_reset(slug: str):
+    """Delete conversation state to reset the pipeline to idle."""
+    try:
+        from agent.conversation_manager import reset_pipeline
+        reset_pipeline(slug.lower())
+        return JSONResponse({"reset": True, "slug": slug.lower()}, status_code=200)
+    except Exception as exc:
+        log.error("pipeline_reset failed slug=%s: %s", slug, exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)

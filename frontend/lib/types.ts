@@ -174,12 +174,17 @@ export interface ConversationTurn {
   type?: string;
   subject?: string;
   body?: string;
+  grounding_facts?: string[];
+  icp_segment_used?: string;
+  sink_mode?: boolean;
   reply_text?: string;
+  channel?: string;
   expected_intent?: string;
   expected_next_step?: string;
   interpretation?: Interpretation;
   routing?: Routing;
   sms?: SMSStatus | null;
+  timestamp?: string;
 }
 
 export interface ScenarioLog {
@@ -237,6 +242,19 @@ export type CompanySlug =
   | 'streamlineops'
   | 'wiseitech';
 
+export type PipelineStatus = 'idle' | 'waiting_for_reply' | 'processing' | 'booked' | 'stopped';
+
+export interface ConversationState {
+  slug: string;
+  company: string;
+  prospect_email: string | null;
+  status: PipelineStatus;
+  turns: ConversationTurn[];
+  started_at: string | null;
+  last_updated: string | null;
+  outcome: string | null;
+}
+
 export interface CompanyData {
   slug: CompanySlug;
   signals: CompanySignals | null;
@@ -244,4 +262,5 @@ export interface CompanyData {
   gap: CompetitorGapBrief | null;
   prospect: ProspectInfo | null;
   email: LastEmail | null;
+  conversationState: ConversationState | null;
 }
