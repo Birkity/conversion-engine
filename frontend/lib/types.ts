@@ -256,7 +256,7 @@ export interface ConversationState {
 }
 
 export interface CompanyData {
-  slug: CompanySlug;
+  slug: string; // CompanySlug for builtins, arbitrary string for custom companies
   signals: CompanySignals | null;
   brief: HiringBrief | null;
   gap: CompetitorGapBrief | null;

@@ -309,6 +309,59 @@ async def get_conversation(slug: str):
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.post("/api/companies/create")
+async def companies_create(request: Request):
+    """
+    Create a new company entry so it can be run through the pipeline.
+
+    Body: {
+      "company_name": str,
+      "prospect_name": str,
+      "prospect_email": str,  # must be synthetic domain
+      "prospect_role": str,
+      "pitch_angle": str      # optional
+    }
+
+    Returns: {"slug": str, "company": str}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "malformed JSON"}, status_code=400)
+
+    required = ["company_name", "prospect_name", "prospect_email", "prospect_role"]
+    missing = [f for f in required if not (body.get(f) or "").strip()]
+    if missing:
+        return JSONResponse({"error": f"Missing required fields: {', '.join(missing)}"}, status_code=422)
+
+    try:
+        from agent.conversation_manager import create_company
+        result = create_company(
+            company_name=body["company_name"].strip(),
+            prospect_name=body["prospect_name"].strip(),
+            prospect_email=body["prospect_email"].strip(),
+            prospect_role=body["prospect_role"].strip(),
+            pitch_angle=(body.get("pitch_angle") or "").strip(),
+        )
+        return JSONResponse(result, status_code=201)
+    except ValueError as exc:
+        log.warning("companies_create validation error: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    except Exception as exc:
+        log.error("companies_create failed: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.get("/api/companies")
+async def companies_list():
+    """Return all known company slugs (built-in + custom)."""
+    try:
+        from agent.conversation_manager import get_all_slugs
+        return JSONResponse({"slugs": get_all_slugs()}, status_code=200)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/pipeline/reset/{slug}")
 async def pipeline_reset(slug: str):
     """Delete conversation state to reset the pipeline to idle."""
