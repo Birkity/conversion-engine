@@ -41,6 +41,13 @@
       },
       {
         "turn": 2,
+        "from": "agent",
+        "type": "clarification_email",
+        "subject": "Re: Context: Series A $14M closed March 2026",
+        "body": "Jordan,\n\nFair point — backfill roles signal team stability rather than aggressive growth.\n\nThat said, companies building AI-first products after a Series A often find that ML engineering capacity becomes the real constraint, even when overall headcount is flat.\n\nGiven Arcana's credit intelligence layer is core to your product roadmap, is ML capacity specifically where you're feeling the pressure?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 3,
         "from": "prospect",
         "reply_text": "Fair point. Honestly our ML capacity has been the bottleneck for the past quarter. Let's talk.",
         "expected_intent": "INTERESTED",
@@ -112,6 +119,13 @@
       },
       {
         "turn": 2,
+        "from": "agent",
+        "type": "clarification_email",
+        "subject": "Re: Context: Series A $9M",
+        "body": "Jordan,\n\nGood question. Our bench includes Python ML engineers with production experience in inference pipeline optimization \u2014 covering model serving, latency reduction, and GPU-efficient deployment.\n\nWe typically place engineers within 1\u20132 weeks who are ready to contribute to FastAPI and Kubernetes environments from day one.\n\nWould it help to get on a quick call to walk through specific profiles?\n\nBirkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+      },
+      {
+        "turn": 3,
         "from": "prospect",
         "reply_text": "Good, that bench sounds relevant. Texting is easier for me \u2014 send the scheduling link that way.",
         "expected_intent": "SCHEDULE",

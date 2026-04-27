@@ -7,8 +7,6 @@ import {
   Building2,
   MessageSquare,
   FlaskConical,
-  FileText,
-  Play,
   ChevronDown,
   ChevronRight,
   Zap,
@@ -32,8 +30,6 @@ const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/communication', label: 'Communication', icon: MessageSquare },
   { href: '/probes', label: 'Probe Results', icon: FlaskConical },
-  { href: '/memo', label: 'Exec Memo', icon: FileText },
-  { href: '/scenarios', label: 'Demo Scenarios', icon: Play },
 ];
 
 export default function Sidebar() {
