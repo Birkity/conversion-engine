@@ -434,6 +434,7 @@ def start_pipeline(slug: str) -> dict:
                 "grounding_facts": grounding,
                 "icp_segment_used": icp_used,
                 "sink_mode": send_result.get("sink_mode", True),
+                "tone_warnings": tone_warnings,
                 "timestamp": now,
             }
         ],

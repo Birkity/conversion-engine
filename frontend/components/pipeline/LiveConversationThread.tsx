@@ -68,6 +68,21 @@ function AgentTurnCard({ turn }: { turn: ConversationTurn }) {
             </ul>
           </div>
         )}
+        {turn.tone_warnings && turn.tone_warnings.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-amber-900/30">
+            <div className="text-[10px] text-amber-500 font-medium mb-1.5">
+              Tone warnings ({turn.tone_warnings.length})
+            </div>
+            <ul className="space-y-1">
+              {turn.tone_warnings.map((w, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-amber-400">
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {turn.timestamp && (

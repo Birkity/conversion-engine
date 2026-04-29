@@ -1,14 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, User, Mail } from 'lucide-react';
-import { getHiringBrief, getSignals, getCompetitorGap, getProspectInfo, getLastEmail } from '@/lib/data';
-import { COMPANY_SLUGS, getSegmentColor, cn } from '@/lib/utils';
-import type { CompanySlug } from '@/lib/types';
+import { getHiringBrief, getSignals, getCompetitorGap, getProspectInfo, getLastEmail, getAllSlugs } from '@/lib/data';
+import { COMPANY_SLUGS, getSegmentColor, formatIcpSegment, cn } from '@/lib/utils';
 import SignalsPanel from '@/components/company/SignalsPanel';
 import AIMaturityGauge from '@/components/company/AIMaturityGauge';
 import HiringBriefAccordion from '@/components/company/HiringBriefAccordion';
 import CompetitorGapPanel from '@/components/company/CompetitorGapPanel';
 import EmailPreview from '@/components/company/EmailPreview';
+import IntegrationsPanel from '@/components/company/IntegrationsPanel';
+
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return COMPANY_SLUGS.map((slug) => ({ slug }));
@@ -17,9 +19,10 @@ export function generateStaticParams() {
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  if (!COMPANY_SLUGS.includes(slug as CompanySlug)) notFound();
+  const allSlugs = getAllSlugs();
+  if (!allSlugs.includes(slug)) notFound();
 
-  const s = slug as CompanySlug;
+  const s = slug;
   const [signals, brief, gap, prospect, email] = await Promise.all([
     getSignals(s),
     getHiringBrief(s),
@@ -48,7 +51,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           </div>
           {brief?.icp_segment && (
             <span className={cn('inline-flex items-center px-3 py-1 rounded-lg border text-sm font-medium', getSegmentColor(brief.icp_segment))}>
-              {brief.icp_segment}
+              {formatIcpSegment(brief.icp_segment)}
             </span>
           )}
         </div>
@@ -86,6 +89,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         <div className="lg:col-span-2 space-y-4">
           <CompetitorGapPanel gap={gap} />
           <EmailPreview email={email} companyName={companyName} />
+          <IntegrationsPanel slug={slug} />
         </div>
       </div>
     </div>

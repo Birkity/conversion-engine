@@ -184,6 +184,7 @@ export interface ConversationTurn {
   interpretation?: Interpretation;
   routing?: Routing;
   sms?: SMSStatus | null;
+  tone_warnings?: string[];
   timestamp?: string;
 }
 
