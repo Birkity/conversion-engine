@@ -1,184 +1,71 @@
-# Tenacious-Bench v0.1 — Benchmark Dimensions
+# Tenacious-Bench Dimensions
 
-## Design Constraint
+Tenacious-Bench scores a `(brief, email, prior_thread, bench_summary, rubric)` task. The binding rule is simple: if any dimension fails, the email is rejected. The benchmark prefers deterministic checks where possible and reserves LLM judgment for semantic ICP-pitch alignment.
 
-Every dimension must be machine-verifiable: a script reads a task plus an agent output and
-returns a numerical score with no human in the loop. Dimensions D2–D5 are fully programmatic.
-D1 requires a dev-tier LLM call (DeepSeek V3.2) with an explicit rubric.
+## D1 Grounding Fidelity
 
-## Scoring Priority
+**What it means:** Every concrete claim in the email must be supported by the supplied brief, prior thread, bench summary, or pricing/rubric facts. Concrete claims include numbers, dates, funding amounts, hiring-velocity statements, stack claims, availability claims, and claims about Tenacious capability.
 
-D2 → D1 → D3 → D4 → D5 (earlier = more fundamental failure).
+**Why it matters:** Week 10's main trust risk was not bad prose; it was confident claims built on weak or contradictory evidence. SnapTrade had `delta_pct=-60.0` and `icp_segment=ambiguous`, yet the email moved from a real decrease signal to an unsupported API acceleration pitch. WiseiTech had `delta_pct=-100.0`, `weak_hiring_velocity_signal=true`, and still received an augmentation claim. Probes 11-13 show that prospects challenge weak or stale signal directly.
 
-The first failing dimension is the `primary_failure_dimension` in the task record.
+**PASS looks like:** The email repeats or paraphrases at least one supplied grounding fact, and all numeric/date/funding/capacity tokens are present in the evidence. If evidence is weak, the email asks rather than asserts.
+
+**FAIL looks like:** The email invents a funding amount, percentage, year, role type, stack availability, customer claim, or hiring state not present in the task evidence. It also fails if it makes no concrete reference to the brief at all.
+
+**Scoring type:** Programmatic first. Numeric/date/currency tokens are checked against the evidence text; at least one supplied grounding fact must appear or be matched by its key terms. A later LLM judge may be added for paraphrase-heavy claims, but the Phase 1 evaluator stays deterministic.
+
+## D2 ICP-Pitch Alignment
+
+**What it means:** The email's primary pitch frame must match the ICP segment assigned in the brief.
+
+**Why it matters:** The hardest Week 10 failure is confusing "some technical stack match exists" with "this company is in-market for this Tenacious pitch." SnapTrade and WiseiTech were `Ambiguous`, but both received product claims. The ICP seed says that when no segment is justified, the system must abstain and send an exploratory email rather than segment-specific pitch.
+
+**PASS looks like:** Segment 1 receives a growth, post-funding, scaling, or hiring-capacity pitch. Segment 2 receives a restructuring, continuity, cost-discipline, or retained-delivery pitch. Segment 3 receives a leadership-transition or vendor-mix reassessment pitch. Segment 4 receives a specific capability-gap pitch grounded in AI readiness and bench feasibility. Ambiguous receives a qualifying question and no product claim.
+
+**FAIL looks like:** Ambiguous receives "Tenacious can provide..." or any direct product/capacity claim. Segment 1 receives a layoff/cost-cutting pitch. Segment 2 receives an aggressive scaling pitch. Segment 4 receives a generic engineering-shortage pitch or a capability pitch unsupported by AI readiness or bench availability.
+
+**Scoring type:** LLM-judged later, with deterministic fast-fail for obvious Ambiguous-plus-product-claim cases. The Phase 1 evaluator includes a placeholder that catches the obvious fast-fail and otherwise returns pass until the trained or prompted judge is attached.
+
+## D3 Signal Directionality
+
+**What it means:** The pitch direction must match hiring velocity. Positive velocity can support scaling language; negative velocity requires caution, restructuring framing, or a qualifying question.
+
+**Why it matters:** The confirmed Week 10 failure mode is signal over-claiming when job velocity is negative. SnapTrade decreased 60% and WiseiTech decreased 100%, but both emails used growth or augmentation frames. A generic benchmark would reward clean language; Tenacious-Bench rejects the direction mismatch.
+
+**PASS looks like:** A company with `delta_pct >= -20` can receive a growth-frame pitch if other ICP evidence supports it. A company with `delta_pct < -20` avoids terms such as "scaling," "bottleneck," "accelerate," "augment your team," or "increased demand" unless the brief explicitly supplies a restructuring/cost-preservation rationale.
+
+**FAIL looks like:** A company with materially negative hiring velocity receives a growth, acceleration, scale-up, or headcount-expansion pitch.
+
+**Scoring type:** Programmatic. The evaluator checks `brief.hiring_velocity.delta_pct` and rejects negative-velocity emails containing growth-frame terms.
+
+## D4 Tone Compliance
+
+**What it means:** The email must obey the Tenacious style guide: direct, grounded, honest, professional, and non-condescending.
+
+**Why it matters:** Week 10 already produced `tone_warnings`, but warnings did not block bad messages. Probes 18-20 show why tone matters: self-disclosed AI gaps can be mishandled as condescension, and a prospect asking "are you calling us unsophisticated?" is a relationship-risk event.
+
+**PASS looks like:** No filler openers, no offshore-vendor cliches, no condescending gap language, no invented urgency, and no internal jargon such as "bench" in prospect-facing copy.
+
+**FAIL looks like:** The body contains banned phrases such as "top talent," "world-class," "rockstar," "ninja," "aggressive hiring," "guaranteed ROI," "falling behind," "you lack," "left behind," "quick," "just," or "hope this finds." It also fails on prospect-facing "bench" jargon.
+
+**Scoring type:** Programmatic banned-phrase and jargon check.
+
+## D5 Format Compliance
+
+**What it means:** The email must follow the cold-outreach structure from the style guide.
+
+**Why it matters:** Format is not the deepest failure, but it is a reliable hard gate. The style guide caps cold email bodies at 120 words, subject lines at 60 characters, one ask per message, and no cold booking links. Week 10 also showed that booking links belong after an interested or scheduling reply, not in a first-touch email.
+
+**PASS looks like:** Subject line is 60 characters or fewer and starts with an approved prefix: "Context:", "Note on", "Congrats on", or "Question on". Body is 120 words or fewer. The email contains no URL or Cal.com link and does not stack multiple asks.
+
+**FAIL looks like:** Overlong subject, overlong body, URL in cold outreach, direct booking ask, multiple question marks, or unsupported meeting language such as "schedule a call" in first-touch copy.
+
+**Scoring type:** Programmatic.
 
 ## Overall Verdict
 
-PASS = all scored dimensions pass. REJECT = any single dimension fails.
+The evaluator returns five binary dimension scores. `PASS` requires all five dimensions to score `1`. Any `0` produces `REJECT`.
 
----
+## What This Enables for Phase 2 (Dataset Construction)
 
-## Primary Dimensions
-
-### D1 — ICP-Pitch Alignment
-
-**What it measures:** Does the email's pitch frame match the ICP segment assigned in the
-hiring signal brief?
-
-**Why it matters:** SnapTrade and WiseiTech were assigned `segment=Ambiguous` but received
-product pitches. An Ambiguous company has insufficient signal to justify a specific claim.
-Segment 1 companies (Arcana, PulseSight, StreamlineOps) correctly received scaling pitches.
-
-**Ground truth:** Lookup table — each segment maps to exactly one valid pitch family.
-
-| Segment | Required pitch frame | Invalid pitch frames |
-|---|---|---|
-| Segment 1 | scaling bottleneck, integration speed, headcount gap post-funding | restructuring, cost-cutting, AI gap claim |
-| Segment 2 | re-staffing after reduction, project continuity, skills gap | growth-bottleneck, scaling acceleration |
-| Segment 3 | new leader building their stack, modernization, capability uplift | generic headcount, AI gap without evidence |
-| Segment 4 | specific AI capability gap, ML maturity uplift, AI tooling | generic engineering shortage, scaling pitch |
-| Ambiguous | qualifying question only — no product claim, no specific pitch | any product claim whatsoever |
-
-**Verification:** Dev-tier LLM judge (DeepSeek V3.2 via OpenRouter) with this rubric:
-
-```
-Given the ICP segment and the email body, answer: does the email's primary pitch frame
-match the valid frames for this segment? Return JSON: {"score": 0 or 1, "reason": "..."}
-Score 0 if: (a) segment is Ambiguous and email makes any product claim; (b) pitch frame
-is from the invalid list for this segment; (c) pitch is generic with no segment-specific angle.
-Score 1 if: pitch frame is from the valid list, or email asks a qualifying question.
-```
-
-**Failure examples from Week 10 traces:**
-- SnapTrade: segment=Ambiguous, email="Tenacious provides engineers who can augment your
-  team" → D1 FAIL (product claim on Ambiguous)
-- WiseiTech: segment=Ambiguous, email="Tenacious provides research-backed engineers
-  available on-demand" → D1 FAIL (product claim on Ambiguous)
-
----
-
-### D2 — Signal Directionality
-
-**What it measures:** Does the email's pitch direction match the hiring velocity signal?
-
-**Why it matters:** A company with -60% or -100% job velocity is shedding open roles.
-Pitching "scaling bottleneck" or "augment capabilities" to a contracting company is
-directionally wrong and not grounded in the evidence.
-
-**Ground truth:** Arithmetic rule — fully programmatic, no LLM call.
-
-```python
-def score_d2_directionality(brief: dict, email_body: str) -> tuple[int, str | None]:
-    delta = brief.get("hiring_velocity", {}).get("delta_pct", 0.0) / 100.0
-    growth_re = re.compile(
-        r'\bbottleneck\b|\bscaling\b|\baccelerati|\brapid growth\b|'
-        r'\bincreased demand\b|\bneed to augment\b|\baugment\b', re.I
-    )
-    if delta < -0.20 and growth_re.search(email_body):
-        return 0, f"contraction signal ({delta:.0%}) with growth-frame pitch"
-    return 1, None
-```
-
-Threshold: `-0.20` (20% contraction). Below this the hiring direction is unambiguously
-negative and a growth pitch is misaligned.
-
-**Evidence from traces:**
-- SnapTrade: `delta_pct=-60`, email body contains "bottlenecks integrating new APIs" → FAIL
-- WiseiTech: `delta_pct=-100`, email body contains "needing to augment" → FAIL
-- Arcana: `delta_pct=+100`, email body contains "bottlenecks integrating new engineers" → PASS
-- PulseSight: `delta_pct=+133`, email body contains "scaling after Series A" → PASS
-
----
-
-## Secondary Dimensions
-
-### D3 — Grounding Completeness
-
-**What it measures:** Are all numeric claims in the email body verifiable in the hiring
-signal brief?
-
-**Why it matters:** The template concatenation bug in `router.py` produces outputs like
-"SnapTrade recently snaptrade ai maturity score: 0/3" — grounding facts pasted without
-a verb. The honesty check in `reply_interpreter.py` uses token-matching but only fires
-post-reply, not post-email-generation. D3 catches fabricated or misquoted numbers at
-email-generation time.
-
-**Verification:** Fully programmatic.
-
-```python
-def score_d3_grounding(email_body: str, brief_text: str) -> tuple[int, str | None]:
-    nums = re.findall(r'\$[\d,.]+[MBK]?|\d+%|\b\d{4}\b', email_body)
-    bad = [n for n in nums if n not in brief_text]
-    return (1, None) if not bad else (0, f"unverified numeric tokens: {bad}")
-```
-
-Catches: invented dollar amounts, wrong percentages, fabricated years.
-Does NOT penalize vague qualitative claims (those are D1's domain).
-
----
-
-### D4 — Tone Compliance
-
-**What it measures:** Does the email contain zero banned phrases from the Tenacious style
-guide?
-
-**Why it matters:** The existing `tone_warnings` system in `agent/email/generator.py`
-already checks this but does not block sends. D4 makes the same check a hard gate in
-the benchmark.
-
-**Verification:** Fully programmatic. Banned phrase list lifted from `generator.py`.
-
-```python
-BANNED_PHRASES = [
-    "top talent", "world-class", "rockstar", "ninja", "aggressive hiring",
-    "cost savings of", "guaranteed roi", "proven track record",
-    "falling behind", "you're behind", "you lack", "you're missing",
-    "you need to catch up", "left behind",
-    "http://", "https://cal.com", "schedule a", "book a",
-    "quick ", "just ", "hey there", "hope this finds",
-]
-```
-
-Note: "bench" is excluded from D4 here (the generator bans it) because some grounding
-facts legitimately reference bench capabilities. This avoids false positives.
-
----
-
-### D5 — Format Compliance
-
-**What it measures:** Does the email meet the structural requirements of Tenacious outreach?
-
-**Verification:** Fully programmatic.
-
-```python
-def score_d5_format(subject: str, email_body: str) -> tuple[int, str | None]:
-    word_count = len(email_body.split())
-    if word_count > 120:
-        return 0, f"body too long: {word_count} words (max 120)"
-    if len(subject) > 60:
-        return 0, f"subject too long: {len(subject)} chars (max 60)"
-    if re.search(r'https?://', email_body):
-        return 0, "booking/external URL in cold outreach body"
-    return 1, None
-```
-
----
-
-## Difficulty Stratification
-
-| Level | Criteria |
-|---|---|
-| easy | Single dimension fails, failure is obvious (e.g., banned phrase present, URL in body) |
-| medium | D1 or D2 fails with a subtly wrong pitch frame — passes surface checks |
-| hard | All programmatic dimensions pass; only D1 LLM judge catches the semantic failure |
-
-Target distribution: 20% easy, 50% medium, 30% hard.
-
-## Dimension Coverage by Source Mode
-
-| Source mode | Primary D targeted | Notes |
-|---|---|---|
-| trace_derived | D2, D1 | Real failures from SnapTrade, WiseiTech traces |
-| programmatic | D2, D3 | Sweep velocity × segment combinations |
-| synthesis | D1 | Hard semantic edge cases needing LLM judge |
-| adversarial | D1, D2 | Emails that pass D3–D5 but fail semantically |
+These dimensions define the labels for trace-derived tasks, programmatic sweeps, synthetic hard cases, and hand-authored adversarial examples. Phase 2 can now vary ICP segment, hiring velocity, grounding facts, tone traps, and format traps independently while keeping every task reproducible and scoreable by a stranger.

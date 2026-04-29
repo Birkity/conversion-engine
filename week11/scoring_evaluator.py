@@ -1,12 +1,13 @@
 """
-Tenacious-Bench v0.1 — Scoring Evaluator
+Tenacious-Bench Phase 1 scoring evaluator.
 
-Implements D1–D5 scoring. D2–D5 are fully programmatic (no model calls).
-D1 (ICP-Pitch Alignment) requires a dev-tier LLM call; pass llm_judge_fn to enable it.
+No model calls are made here. ICP-pitch alignment has an LLM-judge placeholder
+with a deterministic fast-fail for the most obvious Week 10 failure:
+Ambiguous segment plus a product/capacity claim.
 
 Usage:
-    python scoring_evaluator.py          # runs against 3 example tasks from schema.json
-    python scoring_evaluator.py task.json  # score a single task file
+    python week11/scoring_evaluator.py
+    python week11/scoring_evaluator.py path/to/task.json
 """
 
 from __future__ import annotations
@@ -15,291 +16,412 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Callable, Optional
-
-# ── Banned phrases from agent/email/generator.py ──────────────────────────────
-
-BANNED_PHRASES: list[str] = [
-    "top talent", "world-class", "rockstar", "ninja", "aggressive hiring",
-    "cost savings of", "guaranteed roi", "proven track record",
-    "falling behind", "you're behind", "you lack", "you're missing",
-    "you need to catch up", "left behind",
-    "https://cal.com", "schedule a", "book a",
-    "quick ", "just ", "hey there", "hope this finds",
-]
-
-# ── D2: Signal Directionality ──────────────────────────────────────────────────
-
-_GROWTH_FRAME_RE = re.compile(
-    r"\bbottleneck\b|\bscaling\b|\baccelerati|\brapid growth\b|"
-    r"\bincreased demand\b|\bneed to augment\b|\baugment\b",
-    re.IGNORECASE,
-)
+from typing import Any
 
 
-def score_d2_directionality(
-    brief: dict, email_body: str
-) -> tuple[int, Optional[str]]:
-    """
-    FAIL if: velocity_delta < -20% AND email uses a growth-frame keyword.
-    Evidence: snaptrade-2026-04-28 (delta=-60%, body="bottlenecks"),
-              wiseitech-2026-04-27 (delta=-100%, body="augment").
-    """
-    delta = brief.get("hiring_velocity", {}).get("delta_pct", 0.0) / 100.0
-    if delta < -0.20 and _GROWTH_FRAME_RE.search(email_body):
-        return 0, f"contraction signal ({delta:.0%}) with growth-frame pitch"
-    return 1, None
-
-
-# ── D3: Grounding Completeness ─────────────────────────────────────────────────
-
-_NUMERIC_RE = re.compile(r"\$[\d,.]+[MBmk]?|\d+%|\b\d{4}\b")
-
-
-def score_d3_grounding(
-    email_body: str, brief: dict
-) -> tuple[int, Optional[str]]:
-    """
-    FAIL if any numeric token in the email body cannot be found in the brief.
-    Catches: wrong funding amounts, invented percentages, fabricated years.
-
-    Corpus includes the full JSON representation of the brief PLUS derived
-    percentage strings from hiring_velocity.delta_pct, so that "60%" in the
-    email is verified against delta_pct=-60.0 in the brief.
-    """
-    brief_text = json.dumps(brief)
-    # Derive percentage string from delta_pct so "60%" matches "-60.0"
-    delta = brief.get("hiring_velocity", {}).get("delta_pct", 0.0)
-    derived_pct = f"{abs(int(delta))}%"
-    corpus = brief_text + " " + derived_pct
-
-    tokens = _NUMERIC_RE.findall(email_body)
-    unverified = [t for t in tokens if t not in corpus]
-    if unverified:
-        return 0, f"unverified numeric tokens: {unverified}"
-    return 1, None
-
-
-# ── D4: Tone Compliance ────────────────────────────────────────────────────────
-
-
-def score_d4_tone(email_body: str) -> tuple[int, Optional[str]]:
-    """
-    FAIL if any banned phrase from the Tenacious style guide appears in the body.
-    List mirrors agent/email/generator.py.
-    """
-    body_lower = email_body.lower()
-    hits = [p for p in BANNED_PHRASES if p in body_lower]
-    if hits:
-        return 0, f"banned phrases detected: {hits}"
-    return 1, None
-
-
-# ── D5: Format Compliance ──────────────────────────────────────────────────────
-
-_URL_RE = re.compile(r"https?://")
-
-
-def score_d5_format(subject: str, email_body: str) -> tuple[int, Optional[str]]:
-    """
-    FAIL if: body > 120 words, subject > 60 chars, or URL present in cold outreach.
-    """
-    word_count = len(email_body.split())
-    if word_count > 120:
-        return 0, f"body too long: {word_count} words (max 120)"
-    if len(subject) > 60:
-        return 0, f"subject too long: {len(subject)} chars (max 60)"
-    if _URL_RE.search(email_body):
-        return 0, "external URL in cold outreach body"
-    return 1, None
-
-
-# ── D1: ICP-Pitch Alignment (LLM gate) ────────────────────────────────────────
-
-SEGMENT_VALID_FRAMES: dict[str, list[str]] = {
-    "segment 1": ["bottleneck", "scaling", "accelerat", "post-fund", "integrat", "headcount"],
-    "segment 2": ["re-staff", "after layoff", "continuity", "gap", "project", "reduction"],
-    "segment 3": ["new leader", "moderniz", "stack", "rebuild", "uplift", "cto"],
-    "segment 4": ["ai gap", "ai capability", "ml tooling", "maturity", "dedicated ai"],
-    "ambiguous": [],
+DEFAULT_RUBRIC: dict[str, Any] = {
+    "negative_velocity_threshold_pct": -20.0,
+    "max_subject_chars": 60,
+    "max_body_words": 120,
+    "approved_subject_prefixes": [
+        "context:",
+        "note on",
+        "congrats on",
+        "question on",
+    ],
+    "banned_phrases": [
+        "top talent",
+        "world-class",
+        "a-players",
+        "rockstar",
+        "ninja",
+        "aggressive hiring",
+        "cost savings of",
+        "guaranteed roi",
+        "proven track record",
+        "falling behind",
+        "you're behind",
+        "you lack",
+        "you're missing",
+        "you need to catch up",
+        "left behind",
+        "hope this finds",
+        "hey there",
+        "quick ",
+        "just ",
+    ],
+    "growth_frame_terms": [
+        "bottleneck",
+        "bottlenecks",
+        "scaling",
+        "scale your",
+        "accelerate",
+        "accelerating",
+        "rapid growth",
+        "increased demand",
+        "augment your team",
+        "augment existing",
+        "expand the team",
+        "staff up",
+    ],
+    "product_claim_terms": [
+        "tenacious can",
+        "tenacious provides",
+        "tenacious offers",
+        "we can",
+        "we provide",
+        "our engineers",
+        "available on-demand",
+        "pre-vetted",
+        "project-ready",
+        "augment your",
+        "deploy in days",
+    ],
 }
 
-D1_SYSTEM_PROMPT = """You are a sales quality judge for Tenacious Intelligence Corporation.
-
-Given a hiring signal brief (JSON) and a generated outreach email, evaluate:
-Does the email's primary pitch frame match the valid frames for the ICP segment?
-
-Segment rules:
-- Segment 1: valid = scaling bottleneck, integration speed, headcount gap post-funding
-- Segment 2: valid = re-staffing after reduction, project continuity, skills gap
-- Segment 3: valid = new leader building stack, modernization, capability uplift
-- Segment 4: valid = specific AI capability gap, ML maturity uplift, AI tooling
-- Ambiguous: valid = qualifying question ONLY; any product claim = FAIL
-
-Return JSON exactly: {"score": 0 or 1, "reason": "one sentence"}
-Score 0 = FAIL (wrong pitch frame or product claim on Ambiguous segment).
-Score 1 = PASS (pitch matches segment, or email asks a qualifying question).
-"""
+NUMERIC_TOKEN_RE = re.compile(
+    r"\$[\d,.]+[A-Za-z]*|\b\d+(?:\.\d+)?%|\b\d{4}\b|\bQ[1-4]\s+\d{4}\b",
+    re.IGNORECASE,
+)
+URL_RE = re.compile(r"https?://|cal\.com", re.IGNORECASE)
+WORD_RE = re.compile(r"[A-Za-z0-9$%]+")
 
 
-def score_d1_icp_alignment(
-    brief: dict,
-    email: dict,
-    llm_judge_fn: Optional[Callable[[str, str], dict]] = None,
-) -> tuple[Optional[int], Optional[str]]:
-    """
-    Programmatic pre-check first (fast path). LLM judge only if ambiguous.
-    Returns (None, None) if llm_judge_fn is not provided.
-    """
-    segment = (brief.get("icp_segment") or "").lower().strip()
-    body_lower = email.get("body", "").lower()
-
-    # Fast-path: Ambiguous + any product claim = immediate FAIL.
-    # Use substring matching (case-insensitive) rather than word-boundary regex
-    # to avoid plural/inflection misses (provides, engineers, augments, etc.).
-    PRODUCT_CLAIM_PHRASES = [
-        "tenacious can", "tenacious provides", "tenacious will",
-        "tenacious offers", "tenacious gives", "we provide", "we can augment",
-        "our engineers", "our team can", "augment your team", "augment your",
-        "pre-vetted", "project-ready", "available on-demand",
-    ]
-    if segment == "ambiguous":
-        body_lower_check = email.get("body", "").lower()
-        if any(phrase in body_lower_check for phrase in PRODUCT_CLAIM_PHRASES):
-            return 0, "segment=Ambiguous but email makes a product claim"
-
-    if llm_judge_fn is None:
-        return None, None
-
-    prompt = (
-        f"Brief:\n{json.dumps(brief, indent=2)}\n\n"
-        f"Email subject: {email.get('subject', '')}\n"
-        f"Email body:\n{email.get('body', '')}"
-    )
-    try:
-        result = llm_judge_fn(D1_SYSTEM_PROMPT, prompt)
-        score = int(result.get("score", 1))
-        reason = result.get("reason", "")
-        return score, reason if score == 0 else None
-    except Exception as exc:
-        return None, f"D1 judge error: {exc}"
+def _text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True)
 
 
-# ── Main scorer ────────────────────────────────────────────────────────────────
+def _normalize(value: str) -> str:
+    return re.sub(r"\s+", " ", value.lower()).strip()
 
 
-def score_task(
-    task: dict,
-    llm_judge_fn: Optional[Callable[[str, str], dict]] = None,
-) -> dict:
-    """
-    Score a task dict against D1–D5.
+def _rubric(task_or_rubric: dict[str, Any] | None = None) -> dict[str, Any]:
+    rubric = dict(DEFAULT_RUBRIC)
+    if task_or_rubric:
+        source = task_or_rubric.get("_rubric") or task_or_rubric.get("rubric", task_or_rubric)
+        if isinstance(source, dict):
+            for key, value in source.items():
+                if value not in (None, ""):
+                    rubric[key] = value
+    return rubric
 
-    Args:
-        task: Task dict matching schema.json
-        llm_judge_fn: Optional callable(system_prompt, user_prompt) -> {"score": int, "reason": str}
-                      Required for D1. If None, D1 is skipped (scored as null).
 
-    Returns:
-        {dimension_scores, verdict, primary_failure_dimension, reject_reason}
-    """
-    brief = task["input"]["hiring_signal_brief"]
-    email = task["input"]["generated_email"]
+def _evidence_text(brief: dict[str, Any]) -> str:
+    chunks = [json.dumps(brief, sort_keys=True)]
+    velocity = brief.get("hiring_velocity", {})
+    delta = velocity.get("delta_pct")
+    if isinstance(delta, (int, float)):
+        chunks.append(f"{abs(delta):g}%")
+        chunks.append(f"{abs(round(delta)):g}%")
+        chunks.append(f"{delta:g}%")
+    return _normalize(" ".join(chunks))
+
+
+def _contains_grounding_fact(email_body: str, brief: dict[str, Any]) -> bool:
+    body = _normalize(email_body)
+    facts = [f for f in brief.get("grounding_facts", []) if isinstance(f, str)]
+    if not facts:
+        return False
+
+    for fact in facts:
+        fact_norm = _normalize(fact)
+        if fact_norm and fact_norm in body:
+            return True
+
+        # Allow compact paraphrases by requiring several meaningful fact tokens.
+        tokens = [
+            t
+            for t in WORD_RE.findall(fact_norm)
+            if len(t) > 3 and t not in {"have", "with", "that", "this", "from"}
+        ]
+        if tokens:
+            hits = sum(1 for token in set(tokens) if token in body)
+            if hits >= min(3, len(set(tokens))):
+                return True
+
+    return False
+
+
+def score_grounding_fidelity(email: dict[str, Any], brief: dict[str, Any]) -> int:
+    """Return 1 when the email's concrete claims are supported by the brief."""
+    rubric = _rubric(brief)
     body = email.get("body", "")
+    if not _contains_grounding_fact(body, brief):
+        return 0
+
+    evidence = _evidence_text(brief)
+    numeric_tokens = NUMERIC_TOKEN_RE.findall(body)
+    for token in numeric_tokens:
+        token_norm = _normalize(token)
+        if token_norm not in evidence:
+            return 0
+
+    bench = brief.get("bench_match", {})
+    unavailable = [s.lower() for s in bench.get("unavailable_stacks", [])]
+    bench_available = bench.get("bench_available", True)
+    body_lower = body.lower()
+    if bench_available is False and any(term in body_lower for term in rubric["product_claim_terms"]):
+        return 0
+    if unavailable and any(stack in body_lower for stack in unavailable):
+        if any(term in body_lower for term in ("available", "can provide", "can staff", "deploy")):
+            return 0
+
+    return 1
+
+
+def score_signal_directionality(brief: dict[str, Any], email: dict[str, Any]) -> int:
+    """Return 0 when negative hiring velocity is paired with growth-frame copy."""
+    rubric = _rubric(brief)
+    velocity = brief.get("hiring_velocity", {})
+    delta = velocity.get("delta_pct", 0)
+    try:
+        delta_value = float(delta)
+    except (TypeError, ValueError):
+        delta_value = 0.0
+
+    threshold = rubric["negative_velocity_threshold_pct"]
+    body = email.get("body", "").lower()
+    growth_terms = rubric["growth_frame_terms"]
+    has_growth_frame = any(term.lower() in body for term in growth_terms)
+
+    if delta_value < threshold and has_growth_frame:
+        return 0
+    return 1
+
+
+def score_tone_compliance(email: dict[str, Any]) -> int:
+    """Return 1 when no Tenacious style-guide banned phrase or jargon appears."""
+    rubric = _rubric(email)
+    text = _normalize(f"{email.get('subject', '')} {email.get('body', '')}")
+    banned = rubric["banned_phrases"]
+    if any(phrase.lower() in text for phrase in banned):
+        return 0
+
+    # "bench" is internal jargon in prospect-facing copy.
+    if re.search(r"\bbench\b", text):
+        return 0
+    return 1
+
+
+def score_format(email: dict[str, Any]) -> int:
+    """Return 1 when the email follows cold-outreach format constraints."""
+    rubric = _rubric(email)
     subject = email.get("subject", "")
+    body = email.get("body", "")
+    subject_lower = subject.lower()
 
-    # Score all dimensions
-    d1, d1_reason = score_d1_icp_alignment(brief, email, llm_judge_fn)
-    d2, d2_reason = score_d2_directionality(brief, body)
-    d3, d3_reason = score_d3_grounding(body, brief)
-    d4, d4_reason = score_d4_tone(body)
-    d5, d5_reason = score_d5_format(subject, body)
+    if len(subject) > rubric["max_subject_chars"]:
+        return 0
+    if not any(subject_lower.startswith(prefix) for prefix in rubric["approved_subject_prefixes"]):
+        return 0
+    if len(body.split()) > rubric["max_body_words"]:
+        return 0
+    if URL_RE.search(body):
+        return 0
+    if body.count("?") > 1:
+        return 0
 
-    scores = {"D1": d1, "D2": d2, "D3": d3, "D4": d4, "D5": d5}
-    reasons = {
-        "D1": d1_reason, "D2": d2_reason, "D3": d3_reason,
-        "D4": d4_reason, "D5": d5_reason,
+    meeting_phrases = ("schedule a", "book a", "15 minutes", "book time")
+    if any(phrase in body.lower() for phrase in meeting_phrases):
+        return 0
+
+    return 1
+
+
+def score_icp_pitch_alignment(brief: dict[str, Any], email: dict[str, Any]) -> int:
+    """
+    Placeholder for the later LLM-based ICP-pitch judge.
+
+    Phase 1 keeps this deterministic and conservative: it only fails the
+    confirmed obvious Week 10 error where Ambiguous receives a product claim.
+    All subtler segment-frame judgments should be handled by the future judge.
+    """
+    segment = str(brief.get("icp_segment", "")).strip().lower()
+    body = email.get("body", "").lower()
+    rubric = _rubric(brief)
+
+    if segment == "ambiguous":
+        if any(term.lower() in body for term in rubric["product_claim_terms"]):
+            return 0
+    return 1
+
+
+def score_task(task: dict[str, Any]) -> dict[str, Any]:
+    """Score one Tenacious-Bench task and return the required verdict object."""
+    brief = {
+        **task["brief"],
+        "_bench_summary": task.get("bench_summary", ""),
+        "_prior_thread": task.get("prior_thread", ""),
+        "_rubric": task.get("rubric", {}),
     }
+    email = {**task["email"], "_rubric": task.get("rubric", {})}
 
-    # Verdict: REJECT if any scored dimension is 0
-    verdict = "PASS"
-    primary = "none"
-    reject_reason = None
+    result = {
+        "grounding_fidelity": score_grounding_fidelity(email, brief),
+        "signal_directionality": score_signal_directionality(brief, email),
+        "tone_compliance": score_tone_compliance(email),
+        "format_compliance": score_format(email),
+        "icp_pitch_alignment": score_icp_pitch_alignment(brief, email),
+    }
+    result["overall_verdict"] = "PASS" if all(value == 1 for value in result.values()) else "REJECT"
+    return result
 
-    # Priority order: D2 → D1 → D3 → D4 → D5
-    for dim in ["D2", "D1", "D3", "D4", "D5"]:
-        if scores[dim] == 0:
-            verdict = "REJECT"
-            primary = {
-                "D1": "D1_icp_pitch_alignment",
-                "D2": "D2_signal_directionality",
-                "D3": "D3_grounding_completeness",
-                "D4": "D4_tone_compliance",
-                "D5": "D5_format_compliance",
-            }[dim]
-            reject_reason = reasons[dim]
-            break
 
+def _base_rubric() -> dict[str, Any]:
     return {
-        "dimension_scores": scores,
-        "verdict": verdict,
-        "primary_failure_dimension": primary,
-        "reject_reason": reject_reason,
+        "dimensions": [
+            "grounding_fidelity",
+            "icp_pitch_alignment",
+            "signal_directionality",
+            "tone_compliance",
+            "format_compliance",
+        ],
+        **DEFAULT_RUBRIC,
+        "icp_pitch_alignment_policy": (
+            "Later LLM judge checks whether the primary pitch frame matches the "
+            "brief ICP segment. Phase 1 only fast-fails Ambiguous plus product claim."
+        ),
     }
 
 
-# ── CLI ────────────────────────────────────────────────────────────────────────
+def dummy_tasks() -> list[dict[str, Any]]:
+    """Three local smoke-test tasks. These are not dataset examples."""
+    rubric = _base_rubric()
+    return [
+        {
+            "task_id": "TB-DUMMY-001",
+            "brief": {
+                "company": "Arcana Analytics",
+                "icp_segment": "Segment 1",
+                "confidence": 0.9,
+                "hiring_velocity": {
+                    "direction": "accelerating",
+                    "delta_pct": 100.0,
+                    "signal_strength": "strong",
+                    "observation": "Arcana Analytics has doubled its open job postings in the last 60 days.",
+                },
+                "budget_urgency": {
+                    "level": "high",
+                    "signal": "Series A $14M closed March 2026",
+                },
+                "grounding_facts": [
+                    "Arcana Analytics has doubled its open job postings in the last 60 days.",
+                    "Series A $14M closed March 2026",
+                ],
+                "bench_match": {"required_stacks": ["ml", "python"], "bench_available": True},
+            },
+            "email": {
+                "subject": "Context: Series A $14M closed March 2026",
+                "body": (
+                    "Jordan,\n\n"
+                    "Arcana Analytics has doubled its open job postings in the last 60 days.\n\n"
+                    "Companies scaling after a Series A often face bottlenecks integrating new ML engineers.\n\n"
+                    "Tenacious provides pre-vetted engineers ready to support Python and ML delivery.\n\n"
+                    "What challenges are you encountering scaling your ML engineering team?\n\n"
+                    "Birkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+                ),
+            },
+            "prior_thread": "",
+            "bench_summary": "ML and Python engineers are available.",
+            "rubric": rubric,
+        },
+        {
+            "task_id": "TB-DUMMY-002",
+            "brief": {
+                "company": "SnapTrade",
+                "icp_segment": "Ambiguous",
+                "confidence": 0.7,
+                "hiring_velocity": {
+                    "direction": "decelerating",
+                    "delta_pct": -60.0,
+                    "signal_strength": "moderate",
+                    "observation": "Job postings have decreased in the last 60 days.",
+                },
+                "budget_urgency": {
+                    "level": "low",
+                    "signal": "Seed round $3.2M in 2021",
+                },
+                "grounding_facts": [
+                    "Job postings have decreased 60% in the last 60 days.",
+                    "Seed round $3.2M in 2021",
+                ],
+                "bench_match": {"required_stacks": ["python", "aws"], "bench_available": True},
+            },
+            "email": {
+                "subject": "Context: Job postings decreased -60%",
+                "body": (
+                    "SnapTrade Contact,\n\n"
+                    "Job postings have decreased 60% in the last 60 days.\n\n"
+                    "Companies in your position often face bottlenecks integrating new APIs.\n\n"
+                    "Tenacious provides engineers who can augment your team and accelerate API development.\n\n"
+                    "What are your biggest challenges in maintaining API integrations?\n\n"
+                    "Birkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+                ),
+            },
+            "prior_thread": "",
+            "bench_summary": "Python and AWS engineers are available.",
+            "rubric": rubric,
+        },
+        {
+            "task_id": "TB-DUMMY-003",
+            "brief": {
+                "company": "PulseSight",
+                "icp_segment": "Segment 1",
+                "confidence": 0.85,
+                "hiring_velocity": {
+                    "direction": "accelerating",
+                    "delta_pct": 133.33,
+                    "signal_strength": "strong",
+                    "observation": "PulseSight's open job postings have increased significantly in the last 60 days.",
+                },
+                "budget_urgency": {
+                    "level": "high",
+                    "signal": "Series A $9M",
+                },
+                "grounding_facts": [
+                    "PulseSight's open job postings have increased significantly in the last 60 days.",
+                    "Series A $9M",
+                ],
+                "bench_match": {"required_stacks": ["python", "infra"], "bench_available": True},
+            },
+            "email": {
+                "subject": "Quick note about world-class hiring support for PulseSight",
+                "body": (
+                    "Hey there,\n\n"
+                    "PulseSight raised $99M and is clearly falling behind competitors.\n\n"
+                    "Our world-class top talent can fix that quickly. "
+                    "Book a 15 minutes call at https://cal.com/example.\n\n"
+                    "Birkity\nResearch Partner, Tenacious Intelligence Corporation\ngettenacious.com"
+                ),
+            },
+            "prior_thread": "",
+            "bench_summary": "Python and infrastructure engineers are available.",
+            "rubric": rubric,
+        },
+    ]
 
 
-def _run_examples() -> None:
-    """Run the 3 example tasks from schema.json and print results."""
-    schema_path = Path(__file__).parent / "schema.json"
-    if not schema_path.exists():
-        print("schema.json not found — run from week11/ directory")
-        sys.exit(1)
-
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    examples = schema.get("examples", [])
-
-    print(f"Running {len(examples)} example tasks...\n")
-    all_passed = True
-
-    for task in examples:
+def _run_dummy_tasks() -> None:
+    expected = {
+        "TB-DUMMY-001": "PASS",
+        "TB-DUMMY-002": "REJECT",
+        "TB-DUMMY-003": "REJECT",
+    }
+    for task in dummy_tasks():
         result = score_task(task)
-        expected = task["ground_truth"]
-
-        # Compare programmatic dimensions only (D2–D5; D1 needs LLM)
-        prog_match = all(
-            result["dimension_scores"].get(d) == expected["dimension_scores"].get(d)
-            for d in ["D2", "D3", "D4", "D5"]
-        )
-        verdict_match = result["verdict"] == expected["verdict"]
-        ok = prog_match and verdict_match
-
-        status = "PASS" if ok else "FAIL"
-        if not ok:
-            all_passed = False
-
-        print(f"[{status}] {task['task_id']} ({task['difficulty']})")
-        print(f"  Expected verdict : {expected['verdict']}")
-        print(f"  Got verdict      : {result['verdict']}")
-        print(f"  Dimension scores : {result['dimension_scores']}")
-        if result["reject_reason"]:
-            print(f"  Reject reason    : {result['reject_reason']}")
-        print()
-
-    if all_passed:
-        print("All example tasks scored correctly.")
-    else:
-        print("One or more tasks did not match expected output.")
-        sys.exit(1)
+        print(json.dumps({"task_id": task["task_id"], **result}, indent=2))
+        if result["overall_verdict"] != expected[task["task_id"]]:
+            raise SystemExit(f"{task['task_id']} expected {expected[task['task_id']]}")
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        task_path = Path(sys.argv[1])
-        task = json.loads(task_path.read_text(encoding="utf-8"))
-        result = score_task(task)
-        print(json.dumps(result, indent=2))
+        path = Path(sys.argv[1])
+        task = json.loads(path.read_text(encoding="utf-8"))
+        print(json.dumps(score_task(task), indent=2))
     else:
-        _run_examples()
+        _run_dummy_tasks()
