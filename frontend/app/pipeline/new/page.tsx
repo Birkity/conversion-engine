@@ -57,7 +57,7 @@ const inputErrorClass =
 export default function NewCompanyPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'seed' | 'custom'>('seed');
-  const [selectedSeed, setSelectedSeed] = useState(COMPANY_SLUGS[0]);
+  const [selectedSeed, setSelectedSeed] = useState<string>(COMPANY_SLUGS[0]);
 
   const [form, setForm] = useState({
     company_name: '',

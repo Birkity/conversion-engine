@@ -362,6 +362,83 @@ async def companies_list():
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.get("/api/integrations/hubspot/{slug}")
+async def integrations_hubspot(slug: str):
+    """
+    Return HubSpot contact data for the prospect of a given company slug.
+    Reads prospect_info.json to get the email, then queries HubSpot.
+    """
+    from agent.conversation_manager import _traces_path, _load_json, _PROSPECT_INFO_FILE
+    prospect = _load_json(_traces_path(slug) / _PROSPECT_INFO_FILE)
+    if not prospect:
+        return JSONResponse({"found": False, "error": "No prospect_info.json for this slug"}, status_code=200)
+
+    email = prospect.get("email", "")
+    if not email:
+        return JSONResponse({"found": False, "error": "prospect_info.json has no email field"}, status_code=200)
+
+    try:
+        from agent.hubspot.client import search_contact, _request as hs_request
+        contact_id = search_contact("email", email)
+        if not contact_id:
+            return JSONResponse({"found": False, "prospect_email": email}, status_code=200)
+
+        # Fetch enriched properties
+        props = "hs_lead_status,icp_segment,ai_maturity_score,enrichment_confidence,tenacious_status,enrichment_timestamp,firstname,lastname,company"
+        data = hs_request("GET", f"/crm/v3/objects/contacts/{contact_id}?properties={props}")
+        p = data.get("properties", {})
+        return JSONResponse({
+            "found": True,
+            "contact_id": contact_id,
+            "prospect_email": email,
+            "lead_status": p.get("hs_lead_status"),
+            "icp_segment": p.get("icp_segment"),
+            "ai_maturity_score": p.get("ai_maturity_score"),
+            "enrichment_confidence": p.get("enrichment_confidence"),
+            "tenacious_status": p.get("tenacious_status"),
+            "enrichment_timestamp": p.get("enrichment_timestamp"),
+            "name": f"{p.get('firstname', '')} {p.get('lastname', '')}".strip(),
+            "company": p.get("company"),
+        }, status_code=200)
+    except Exception as exc:
+        log.warning("integrations_hubspot slug=%s error=%s", slug, exc)
+        return JSONResponse({"found": False, "error": str(exc)}, status_code=200)
+
+
+@app.get("/api/integrations/calendar/{slug}")
+async def integrations_calendar(slug: str):
+    """
+    Return a pre-filled Cal.com booking link for the prospect of a given company slug.
+    """
+    from agent.conversation_manager import _traces_path, _load_json, _PROSPECT_INFO_FILE
+    prospect = _load_json(_traces_path(slug) / _PROSPECT_INFO_FILE)
+    if not prospect:
+        return JSONResponse({"error": "No prospect_info.json for this slug"}, status_code=404)
+
+    name = prospect.get("name", "")
+    email = prospect.get("email", "")
+    notes = ""
+    try:
+        from agent.conversation_manager import _HIRING_BRIEF_FILE
+        brief = _load_json(_traces_path(slug) / _HIRING_BRIEF_FILE)
+        if brief:
+            notes = brief.get("recommended_pitch_angle", "")[:200]
+    except Exception:
+        pass
+
+    try:
+        from agent.calendar.client import booking_link
+        url = booking_link(prospect_name=name, prospect_email=email, notes=notes)
+        return JSONResponse({
+            "booking_url": url,
+            "prospect_name": name,
+            "prospect_email": email,
+        }, status_code=200)
+    except Exception as exc:
+        log.warning("integrations_calendar slug=%s error=%s", slug, exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/pipeline/reset/{slug}")
 async def pipeline_reset(slug: str):
     """Delete conversation state to reset the pipeline to idle."""

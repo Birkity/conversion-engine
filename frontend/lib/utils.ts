@@ -48,13 +48,13 @@ export function getSegmentColor(segment: string): string {
 
 export function formatIcpSegment(segment: string): string {
   if (!segment) return '';
-  const s = segment.trim().toLowerCase();
-  if (s.startsWith('segment')) {
-    // Normalize values like "segment 1" -> "Segment 1"
-    return s.replace(/^segment\s+/i, 'Segment ');
-  }
-  if (s === 'ambiguous') return 'Ambiguous';
-  if (s === 'disqualified') return 'Disqualified';
+  const s = segment.toLowerCase();
+  if (s.includes('segment 1')) return 'Segment 1 · Series A';
+  if (s.includes('segment 2')) return 'Segment 2 · Post-Layoff';
+  if (s.includes('segment 3')) return 'Segment 3 · New Leadership';
+  if (s.includes('segment 4')) return 'Segment 4 · AI Gap';
+  if (s.includes('ambiguous')) return 'Ambiguous';
+  if (s.includes('disqualified')) return 'Disqualified';
   return segment;
 }
 
